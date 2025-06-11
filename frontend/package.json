@@ -1,0 +1,29 @@
+{
+  "name": "frappe-ui-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@schedule-x/event-modal": "^2.31.1",
+    "@schedule-x/theme-default": "^2.31.0",
+    "@schedule-x/vue": "^2.29.0",
+    "@vueuse/core": "^9.5.0",
+    "feather-icons": "^4.28.0",
+    "frappe-ui": "^0.0.105",
+    "lucide-vue-next": "^0.513.0",
+    "pinia": "^2.0.14",
+    "vue": "^3.2.25",
+    "vue-router": "^4.0.12"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^2.0.0",
+    "autoprefixer": "^10.4.2",
+    "postcss": "^8.4.5",
+    "tailwindcss": "^3.0.15",
+    "vite": "^2.7.2"
+  }
+}
