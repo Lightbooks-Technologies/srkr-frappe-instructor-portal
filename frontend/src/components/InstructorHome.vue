@@ -24,7 +24,9 @@
       <div v-else class="classes-card">
         <h3 class="classes-title">Today's Classes</h3>
         <div class="classes-list">
-          <div v-for="(classItem, index) in todaysClasses" :key="classItem.id || index" class="class-item">
+          <div v-for="(classItem, index) in todaysClasses" :key="classItem.id || index" 
+               class="class-item"
+               @click="navigateToAttendance(classItem)">
             <div class="class-info">
               <div class="class-name">{{ classItem.name }}</div>
               <div class="class-time">{{ classItem.time }}</div>
@@ -43,47 +45,15 @@
         </router-link>
       </div>
     </div>
-
-    <!-- Action Cards Grid -->
-    <!-- <div class="cards-grid">
-      <router-link to="/clubs" class="action-card clubs-card">
-        <div class="card-icon clubs-icon">
-          <FeatherIcon name="users" class="w-6 h-6 text-white" />
-        </div>
-        <div class="card-title">Clubs</div>
-        <div class="card-subtitle">Join activities</div>
-      </router-link>
-
-      <router-link to="/events" class="action-card events-card">
-        <div class="card-icon events-icon">
-          <FeatherIcon name="calendar-days" class="w-6 h-6 text-white" />
-        </div>
-        <div class="card-title">Events</div>
-        <div class="card-subtitle">8 upcoming</div>
-      </router-link>
-
-      <router-link to="/requests" class="action-card requests-card">
-        <div class="card-icon requests-icon">
-          <FeatherIcon name="user-check" class="w-6 h-6 text-white" />
-        </div>
-        <div class="card-title">Requests</div>
-        <div class="card-subtitle">Submit requests</div>
-      </router-link>
-
-      <router-link to="/posts/new" class="action-card posts-card">
-        <div class="card-icon posts-icon">
-          <FeatherIcon name="edit-3" class="w-6 h-6 text-white" />
-        </div>
-        <div class="card-title">Add New Post</div>
-        <div class="card-subtitle">Share updates</div>
-      </router-link>
-    </div> -->
   </div>
 </template>
 
 <script setup>
 import { FeatherIcon } from 'frappe-ui'
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const props = defineProps({
   events: {
@@ -97,22 +67,43 @@ const todaysClasses = computed(() => {
   return props.events?.todaysClasses || []
 })
 
-// Get current greeting based on time
+// Navigate to attendance page with class data
+const navigateToAttendance = (classItem) => {
+  console.log('Navigating to attendance for class:', classItem)
+  console.log('Navigating to attendance for class:', classItem.id)
+  console.log('Navigating to attendance for class:', classItem.studentGroup)
+  router.push({
+    name: 'Attendance', // or path: '/attendance'
+    params: {
+      courseScheduleId: classItem.id,
+      studentGroup: classItem.studentGroup
+    },
+    query: {
+      basedOn: 'Course Schedule',
+      courseName: classItem.name,
+      courseTime: classItem.time,
+      courseRoom: classItem.room
+    }
+  })
+}
+
+// Get current greeting based on local time
 function getGreeting() {
   const hour = new Date().getHours()
+  console.log('Current Local Hour:', hour)
   if (hour < 12) return 'Good Morning'
   if (hour < 17) return 'Good Afternoon'
   return 'Good Evening'
 }
 
-// Get current day
+// Get current day in local time
 function getCurrentDay() {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const today = new Date()
   return days[today.getDay()]
 }
 
-// Get current date
+// Get current date in local time
 function getCurrentDate() {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const today = new Date()
@@ -121,27 +112,37 @@ function getCurrentDate() {
   return `${day} ${month}`
 }
 
-// Format end time from API response
-function formatEndTime(timeString) {
+// Format time to 12-hour format
+function formatTime(timeString) {
+  if (!timeString) return ''
+  
   const date = new Date(timeString)
   return date.toLocaleTimeString('en-US', { 
     hour: 'numeric', 
     minute: '2-digit', 
-    hour12: true 
+    hour12: true
   })
 }
 
-// Get class status based on time (using full datetime string)
+// Get class status based on local time
 function getClassStatus(startTimeString, endTimeString) {
-  // Get current time in IST
-  const nowIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+  if (!startTimeString || !endTimeString) return 'upcoming'
   
-  // Parse class times (assuming they're already in IST)
+  // Get current time
+  const now = new Date()
+  
+  // Convert class times to Date objects
   const classStartTime = new Date(startTimeString)
   const classEndTime = new Date(endTimeString)
   
-  if (nowIST < classStartTime) return 'upcoming'
-  if (nowIST >= classStartTime && nowIST <= classEndTime) return 'ongoing'
+  console.log('Time comparison (Local):', {
+    current: now.toLocaleString(),
+    classStart: classStartTime.toLocaleString(),
+    classEnd: classEndTime.toLocaleString()
+  })
+  
+  if (now < classStartTime) return 'upcoming'
+  if (now >= classStartTime && now <= classEndTime) return 'ongoing'
   return 'completed'
 }
 
@@ -155,6 +156,32 @@ function getStatusText(startTimeString, endTimeString) {
     default: return 'Upcoming'
   }
 }
+
+// Additional utility functions for local time handling
+const getLocalDateString = () => {
+  return new Date().toLocaleDateString('en-CA')
+}
+
+const formatDateTime = (dateTimeString) => {
+  if (!dateTimeString) return ''
+  
+  const date = new Date(dateTimeString)
+  return date.toLocaleString('en-US', { 
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })
+}
+
+// Expose utility functions if needed by parent
+defineExpose({
+  formatTime,
+  getLocalDateString,
+  formatDateTime
+})
 
 </script>
 
@@ -284,6 +311,14 @@ function getStatusText(startTimeString, endTimeString) {
   background: #f8fafc;
   border-radius: 0.75rem;
   margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.class-item:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .class-info {
@@ -333,19 +368,6 @@ function getStatusText(startTimeString, endTimeString) {
   min-width: 80px;
 }
 
-.status-text {
-  font-weight: 600;
-  margin-bottom: 0.125rem;
-}
-
-.class-end-time {
-  font-size: 0.65rem;
-  opacity: 0.8;
-  text-transform: none;
-  font-weight: 400;
-  letter-spacing: normal;
-}
-
 .class-status.upcoming {
   background: #dbeafe;
   color: #1d4ed8;
@@ -377,101 +399,5 @@ function getStatusText(startTimeString, endTimeString) {
 
 .view-all-btn:hover {
   color: #3730a3;
-}
-
-.cards-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  padding: 0 1rem;
-}
-
-.action-card {
-  background: white;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.action-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.1) 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.action-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-}
-
-.action-card:hover::before {
-  opacity: 1;
-}
-
-.clubs-card {
-  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
-  color: white;
-}
-
-.events-card {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  color: white;
-}
-
-.requests-card {
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  color: white;
-}
-
-.posts-card {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-}
-
-.card-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.clubs-icon {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.events-icon {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.requests-icon {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.posts-icon {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-bottom: 0.25rem;
-}
-
-.card-subtitle {
-  font-size: 0.85rem;
-  opacity: 0.8;
 }
 </style>

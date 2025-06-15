@@ -20,9 +20,7 @@ const events = ref({
 
 // Function to get current date in YYYY-MM-DD format
 const getCurrentDate = () => {
-  return new Date().toLocaleDateString('en-CA', {
-    timeZone: 'Asia/Kolkata'
-  })
+  return new Date().toLocaleDateString('en-CA')
 }
 
 // Function to filter classes for current day
@@ -46,9 +44,9 @@ const formatTime = (timeString) => {
 const scheduleResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.get_instructor_schedule',
   params: {
-    instructor: instructorInfo.instructor_id,
-    start_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
-    end_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+    instructor: instructorInfo.instructor_record_id,
+    start_date: new Date().toLocaleDateString('en-CA'), // Returns YYYY-MM-DD in local timezone
+    end_date: new Date().toLocaleDateString('en-CA'),
   },
   onSuccess: (response) => {
     console.log('Schedule fetched successfully:', response)

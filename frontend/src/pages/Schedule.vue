@@ -1,69 +1,54 @@
 <template>
-  <div class="w-full h-full">
-    <ScheduleXCalendar
-      v-if="!scheduleResource.loading && scheduleResource.data"
-      :events="events"
-    />
+  <div class="p-5 h-full">
+    <v-card class="ma-12">
+      <!-- Optional: Add navigation controls -->
+      <!-- <v-card-title class="d-flex justify-space-between align-center">
+        <span>Instructor Schedule</span>
+        <div>
+          <v-btn @click="goToToday" color="primary" size="small" class="mr-2">
+            Today
+          </v-btn>
+          <v-btn @click="goToPreviousMonth" icon size="small" class="mr-1">
+            <v-icon>mdi-chevron-left</v-icon>
+          </v-btn>
+          <v-btn @click="goToNextMonth" icon size="small">
+            <v-icon>mdi-chevron-right</v-icon>
+          </v-btn>
+        </div>
+      </v-card-title> -->
+      
+      <ScheduleXCalendar ref="calendarRef" />
+    </v-card>
   </div>
 </template>
 
 <script setup>
 import ScheduleXCalendar from '@/components/ScheduleXCalendar.vue'
-import { createResource } from 'frappe-ui'
 import { ref } from 'vue'
-import { studentStore } from '@/stores/student'
-const { getStudentInfo } = studentStore()
-const instructorInfo = getStudentInfo().value
 
-const events = ref([])
+const calendarRef = ref()
 
-const formatTime = (timeStr) => {
-  const parts = timeStr.split(':')
-  const hours = parts[0].padStart(2, '0')
-  const minutes = parts[1]
-  return `${hours}:${minutes}`
+// Navigation methods
+const goToToday = () => {
+  calendarRef.value?.goToToday()
 }
 
-const scheduleResource = createResource({
-  url: 'srkr_frappe_app_api.instructor.api.get_instructor_schedule',
-  params: {
-    instructor: instructorInfo.instructor_id,
-    start_date: new Date().toLocaleDateString('en-CA', {
-      timeZone: 'Asia/Kolkata'
-    }), // Current date in YYYY-MM-DD format
-    // end_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
-  },
-  onSuccess: (response) => {
-    let schedule = []
-    response.forEach((classSchedule, index) => {
-      console.log('classSchedule', classSchedule)
-      const startDateTime = `${formatTime(classSchedule.start_time)}`
-      const endDateTime = `${formatTime(classSchedule.end_time)}`
-      schedule.push({
-        id: index,
-        title: classSchedule.course_name,
-        start: startDateTime,
-        end: endDateTime,
-        with: classSchedule.instructor,
-        name: classSchedule.course_name,
-        location: classSchedule.room,
-        date: classSchedule.date,
-        from_time: classSchedule.start_time.split('.')[0],
-        to_time: classSchedule.end_time.split('.')[0],
-        color: classSchedule.color,
-        _options: {
-          additionalClasses: classSchedule.calendar_id,
-        },
-      })
-    })
-    console.log('Formatted schedule:', schedule)
-    events.value = schedule
-  },
-  onError: (error) => {
-    console.error('Error fetching schedule:', error)
-  },
-  auto: true,
-})
+const goToPreviousMonth = () => {
+  const now = new Date()
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  calendarRef.value?.navigateToMonth(prevMonth.getFullYear(), prevMonth.getMonth() + 1)
+}
+
+const goToNextMonth = () => {
+  const now = new Date()
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  calendarRef.value?.navigateToMonth(nextMonth.getFullYear(), nextMonth.getMonth() + 1)
+}
+
+// Example: Navigate to specific month
+const navigateToSpecificMonth = (year, month) => {
+  calendarRef.value?.navigateToMonth(year, month)
+}
 </script>
 
 <style></style>

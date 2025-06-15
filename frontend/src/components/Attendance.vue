@@ -7,7 +7,8 @@
       </button>
       <div class="header-info">
         <h1 class="course-title">{{ courseInfo.name }}</h1>
-        <p class="course-details">{{ courseInfo.year }}</p>
+        <p class="course-details">{{ courseInfo.time }}</p>
+        <p class="course-room">{{ courseInfo.room }}</p>
       </div>
     </div>
 
@@ -39,16 +40,8 @@
       </div>
     </div>
 
-    <!-- Session Info -->
-    <div class="session-info">
-      <h3 class="session-title">Attendance for the following session</h3>
-      <p class="session-time">{{ formatSessionTime(sessionData.start_time, sessionData.end_time) }}</p>
-    </div>
-
     <!-- Instructions and Actions -->
     <div class="actions-section">
-      <p class="instructions">Click on the checkbox to mark as absent</p>
-      
       <div class="bulk-actions">
         <button @click="markAllAsPresent" class="action-button mark-present">
           Mark all as present
@@ -56,9 +49,9 @@
         <button @click="markAllAsAbsent" class="action-button mark-absent">
           Mark all as absent
         </button>
-        <button @click="resetAttendance" class="action-button reset">
+        <!-- <button @click="resetAttendance" class="action-button reset">
           Reset
-        </button>
+        </button> -->
       </div>
     </div>
 
@@ -68,7 +61,12 @@
         v-for="student in students" 
         :key="student.student"
         class="student-row"
-        :class="{ 'absent': !student.checked }"
+        :class="{ 
+          'absent': student.checked === false, 
+          'disabled': isStudentDisabled(student),
+          'status-present': student.status === 'Present',
+          'status-absent': student.status === 'Absent'
+        }"
         @click="toggleStudentAttendance(student)"
       >
         <div class="student-info">
@@ -80,19 +78,23 @@
               class="student-checkbox"
               @click.stop
             />
-            <div class="custom-checkbox" :class="{ 'checked': student.checked }">
-              <FeatherIcon v-if="student.checked" name="check" class="w-4 h-4 text-white" />
+            <div class="custom-checkbox" :class="{ 
+              'checked': student.checked === true, 
+              'unchecked': student.checked === false,
+              'unmarked': student.checked === null 
+            }">
+              <FeatherIcon v-if="student.checked === true" name="check" class="w-4 h-4 text-white" />
+              <FeatherIcon v-else-if="student.checked === false" name="x" class="w-4 h-4 text-white" />
             </div>
           </div>
           
           <div class="student-details">
             <span class="student-name">{{ student.student_name }}</span>
-            <span class="roll-number">Roll: {{ student.group_roll_number }}</span>
-            <span v-if="student.status" class="status-indicator">{{ student.status }} (Submitted)</span>
+            <span class="roll-number">{{ student.student }}</span>
           </div>
         </div>
         
-        <div v-if="!student.checked && !isStudentDisabled(student)" class="absent-badge">
+        <div v-if="student.checked === false && !isStudentDisabled(student)" class="absent-badge">
           Ab
         </div>
         <div v-if="student.status" class="status-badge" :class="student.status.toLowerCase()">
@@ -106,6 +108,7 @@
       <button @click="submitAttendance" class="submit-button" :disabled="isSubmitDisabled">
         <span v-if="isSubmitting">Submitting...</span>
         <span v-else-if="allStudentsHaveStatus">Attendance Already Submitted</span>
+        <span v-else-if="unmarkedCount > 0">Please mark all students ({{ unmarkedCount }} unmarked)</span>
         <span v-else>Submit Attendance</span>
       </button>
     </div>
@@ -114,19 +117,40 @@
     <div v-if="showConfirmModal" class="modal-overlay" @click="closeConfirmModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Confirm</h3>
+          <h3>Confirm Attendance Submission</h3>
           <button @click="closeConfirmModal" class="close-button">
             <FeatherIcon name="x" class="w-5 h-5" />
           </button>
         </div>
         <div class="modal-body">
-          <p>Do you want to update attendance?</p>
-          <p><strong>Present:</strong> {{ presentCount }}</p>
-          <p><strong>Absent:</strong> {{ absentCount }}</p>
+          <p>Do you want to submit attendance for the remaining students?</p>
+          
+          <!-- Current Submission -->
+          <div class="submission-section">
+            <h4 class="section-title">Students being submitted:</h4>
+            <p><strong>Present:</strong> {{ editablePresentCount }}</p>
+            <p><strong>Absent:</strong> {{ editableAbsentCount }}</p>
+            <p v-if="editableUnmarkedCount > 0"><strong>Unmarked:</strong> {{ editableUnmarkedCount }}</p>
+          </div>
+          
+          <!-- Already Submitted (if any) -->
+          <div v-if="studentsWithStatus.length > 0" class="already-submitted-section">
+            <h4 class="section-title">Already submitted:</h4>
+            <p><strong>Present:</strong> {{ alreadyPresentCount }}</p>
+            <p><strong>Absent:</strong> {{ alreadyAbsentCount }}</p>
+          </div>
+          
+          <!-- Total Summary -->
+          <div class="total-section">
+            <h4 class="section-title">Total class attendance:</h4>
+            <p><strong>Total Present:</strong> {{ totalPresentCount }}</p>
+            <p><strong>Total Absent:</strong> {{ totalAbsentCount }}</p>
+            <p><strong>Total Students:</strong> {{ students.length }}</p>
+          </div>
         </div>
         <div class="modal-actions">
-          <button @click="closeConfirmModal" class="modal-button secondary">No</button>
-          <button @click="confirmSubmit" class="modal-button primary">Yes</button>
+          <button @click="closeConfirmModal" class="modal-button secondary">Cancel</button>
+          <button @click="confirmSubmit" class="modal-button primary">Submit Attendance</button>
         </div>
       </div>
     </div>
@@ -152,71 +176,76 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
 
-// Mock data - replace with actual props/API calls
-const courseInfo = ref({
-  name: 'CSBS-A',
-  year: '1st year'
+// Props from parent component
+const props = defineProps({
+  students: {
+    type: Array,
+    default: () => []
+  },
+  courseInfo: {
+    type: Object,
+    required: true
+  }
 })
 
-const sessionData = ref({
-  start_time: '2025-04-04 09:00:00',
-  end_time: '2025-04-04 10:30:00'
-})
+// Local reactive copy of students for manipulation
+const students = ref([...props.students])
 
-const isEditMode = ref(true)
+// Watch for changes in props.students
+watch(() => props.students, (newStudents) => {
+  students.value = [...newStudents]
+  // Process student data
+  students.value.forEach(student => {
+    if (student.status) {
+      student.checked = student.status === 'Present'
+    } else {
+      student.checked = true  // Not marked yet
+    }
+  })
+}, { immediate: true })
+
+const isEditMode = ref(false)
 const isSubmitting = ref(false)
 const showConfirmModal = ref(false)
 const showErrorModal = ref(false)
 const errorTitle = ref('')
 const errorMessage = ref('')
 
-// Sample student data based on your API response
-const students = ref([
-  {
-    student: "EDU-STU-2025-00002",
-    student_name: "HARSHA VARDHAN JANUP",
-    group_roll_number: 1,
-    status: "Present"
-  },
-  {
-    student: "EDU-STU-2025-00003", 
-    student_name: "VARUN VARMA",
-    status: "Absent",
-    group_roll_number: 2
-  },
-  {
-    student: "EDU-STU-2025-00004",
-    student_name: "ARUN KUMAR REDDY",
-    group_roll_number: 3
-  },
-  {
-    student: "EDU-STU-2025-00005",
-    student_name: "PRIYA SHARMA",
-    group_roll_number: 4
-  },
-  {
-    student: "EDU-STU-2025-00006",
-    student_name: "RAJESH KUMAR",
-    group_roll_number: 5
-  }
-])
-
 // Computed properties
-const presentCount = computed(() => students.value.filter(s => s.checked).length)
-const absentCount = computed(() => students.value.filter(s => !s.checked).length)
+// Updated computed properties for modal
+const editableStudents = computed(() => students.value.filter(s => !s.status))
+const editablePresentCount = computed(() => editableStudents.value.filter(s => s.checked === true).length)
+const editableAbsentCount = computed(() => editableStudents.value.filter(s => s.checked === false).length)
+const editableUnmarkedCount = computed(() => editableStudents.value.filter(s => s.checked === null).length)
+
+// Already submitted students
+const alreadyPresentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Present').length)
+const alreadyAbsentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Absent').length)
+
+// Total counts (current submission + already submitted)
+const totalPresentCount = computed(() => editablePresentCount.value + alreadyPresentCount.value)
+const totalAbsentCount = computed(() => editableAbsentCount.value + alreadyAbsentCount.value)
+
+// Update the existing computed properties to only consider editable students
+const presentCount = computed(() => editablePresentCount.value)
+const absentCount = computed(() => editableAbsentCount.value)
+const unmarkedCount = computed(() => editableUnmarkedCount.value)
 
 // Attendance status checks
 const studentsWithStatus = computed(() => students.value.filter(s => s.status))
 const studentsWithoutStatus = computed(() => students.value.filter(s => !s.status))
-const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length)
+const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0)
 const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && studentsWithoutStatus.value.length > 0)
-const noStudentsHaveStatus = computed(() => studentsWithStatus.value.length === 0)
 
-// Submit button state
-const isSubmitDisabled = computed(() => allStudentsHaveStatus.value || isSubmitting.value)
+// Submit button state - disable if there are unmarked students or all have status
+const isSubmitDisabled = computed(() => 
+  allStudentsHaveStatus.value || 
+  isSubmitting.value || 
+  unmarkedCount.value > 0
+)
 
 // Helper function to check if student is disabled
 const isStudentDisabled = (student) => {
@@ -224,30 +253,15 @@ const isStudentDisabled = (student) => {
 }
 
 // Methods
-const formatSessionTime = (startTime, endTime) => {
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  
-  const formatOptions = {
-    day: '2-digit',
-    month: 'long', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }
-  
-  const startFormatted = start.toLocaleDateString('en-GB', formatOptions)
-  const endFormatted = end.toLocaleTimeString('en-GB', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
-  
-  return `${startFormatted} - ${endFormatted}`
-}
-
 const toggleStudentAttendance = (student) => {
   if (!isStudentDisabled(student)) {
-    student.checked = !student.checked
+    if (student.checked === null) {
+      student.checked = true  // null → present
+    } else if (student.checked === true) {
+      student.checked = false // present → absent
+    } else {
+      student.checked = null  // absent → null
+    }
   }
 }
 
@@ -270,12 +284,16 @@ const markAllAsAbsent = () => {
 const resetAttendance = () => {
   students.value.forEach(student => {
     if (!isStudentDisabled(student)) {
-      student.checked = false // Reset to unchecked by default
+      student.checked = null  // Reset to unmarked
     }
   })
 }
 
 const submitAttendance = () => {
+  // Check if all students are marked
+  if (unmarkedCount.value > 0) {
+    return // Don't show modal if there are unmarked students
+  }
   showConfirmModal.value = true
 }
 
@@ -288,36 +306,72 @@ const confirmSubmit = async () => {
   isSubmitting.value = true
   
   try {
-    // Prepare data for submission
-    const studentsPresent = students.value.filter(s => s.checked)
-    const studentsAbsent = students.value.filter(s => !s.checked)
+    // Filter out students who already have status (exclude from submission)
+    const editableStudents = students.value.filter(s => !s.status)
     
-    const payload = {
-      students_present: JSON.stringify(studentsPresent),
-      students_absent: JSON.stringify(studentsAbsent),
-      student_group: '', // Add actual student group
-      course_schedule: 'EDU-CSH-2025-00313' // Add actual course schedule ID
+    // Prepare data for submission - only include students without existing status
+    const studentsPresent = editableStudents.filter(s => s.checked === true)
+    const studentsAbsent = editableStudents.filter(s => s.checked === false)
+    
+    // Prepare form data in the required format
+    const formData = new FormData()
+    
+    // Add students_present as JSON string
+    formData.append('students_present', JSON.stringify(studentsPresent.map(student => ({
+      student: student.student,
+      student_name: student.student_name,
+      group_roll_number: student.group_roll_number,
+      disabled: false,
+      checked: true
+    }))))
+    
+    // Add students_absent as JSON string  
+    formData.append('students_absent', JSON.stringify(studentsAbsent.map(student => ({
+      student: student.student,
+      student_name: student.student_name,
+      group_roll_number: student.group_roll_number,
+      disabled: false,
+      checked: false
+    }))))
+    
+    // Add other required fields
+    formData.append('student_group', props.courseInfo.studentGroup || '')
+    formData.append('course_schedule', props.courseInfo.scheduleId)
+    
+    console.log('Submitting attendance:', {
+      students_present: studentsPresent.length,
+      students_absent: studentsAbsent.length,
+      students_excluded: students.value.filter(s => s.status).length,
+      course_schedule: props.courseInfo.scheduleId,
+      student_group: props.courseInfo.studentGroup
+    })
+    
+    // Call the API
+    const response = await fetch('/api/method/education.education.api.mark_attendance', {
+      method: 'POST',
+      body: formData
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || 'Failed to submit attendance')
     }
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const result = await response.json()
+    console.log('Attendance submitted successfully:', result)
     
-    // Simulate error for demonstration
-    if (Math.random() > 0.7) {
-      throw new Error('Duplicate Entry')
-    }
-    
-    console.log('Attendance submitted successfully:', payload)
+    // Show success message or redirect
+    // router.push('/attendance-success') or similar
     
   } catch (error) {
     console.error('Error submitting attendance:', error)
     
-    if (error.message === 'Duplicate Entry') {
+    if (error.message.includes('Duplicate') || error.message.includes('already exists')) {
       errorTitle.value = 'Duplicate Entry'
-      errorMessage.value = 'Student Attendance record EDU-ATT-2025-00005 already exists against the Student EDU-STU-2025-00002'
+      errorMessage.value = 'Attendance record already exists for some students in this session.'
     } else {
       errorTitle.value = 'Error'
-      errorMessage.value = 'Failed to submit attendance. Please try again.'
+      errorMessage.value = error.message || 'Failed to submit attendance. Please try again.'
     }
     
     showErrorModal.value = true
@@ -330,22 +384,50 @@ const closeErrorModal = () => {
   showErrorModal.value = false
 }
 
-// Initialize component
-onMounted(() => {
-  // Process student data from API
-  students.value.forEach(student => {
-    if (student.status) {
-      // Student has existing attendance record - set checked state based on status
-      student.checked = student.status === 'Present'
-    } else {
-      // Student doesn't have attendance record - default to unchecked (absent)
-      student.checked = false
+// Optional: Auto-save functionality
+const autoSave = () => {
+  // Save current state to localStorage or similar
+  const attendanceState = {
+    courseScheduleId: props.courseInfo.scheduleId,
+    students: students.value.map(s => ({
+      student: s.student,
+      checked: s.checked
+    }))
+  }
+  localStorage.setItem('attendance_draft', JSON.stringify(attendanceState))
+}
+
+// Optional: Load auto-saved data
+const loadAutoSave = () => {
+  try {
+    const saved = localStorage.getItem('attendance_draft')
+    if (saved) {
+      const data = JSON.parse(saved)
+      if (data.courseScheduleId === props.courseInfo.scheduleId) {
+        // Restore saved state for this course
+        data.students.forEach(savedStudent => {
+          const student = students.value.find(s => s.student === savedStudent.student)
+          if (student && !student.status) {
+            student.checked = savedStudent.checked
+          }
+        })
+      }
     }
-  })
+  } catch (error) {
+    console.error('Error loading auto-save:', error)
+  }
+}
+
+// Watch for changes and auto-save
+watch(students, autoSave, { deep: true })
+
+onMounted(() => {
+  loadAutoSave()
 })
 </script>
 
 <style scoped>
+/* Include all the existing styles from the previous attendance component */
 .attendance-page {
   max-width: 100%;
   margin: 0 auto;
@@ -357,7 +439,7 @@ onMounted(() => {
 .header {
   display: flex;
   align-items: center;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   background: white;
   border-bottom: 1px solid #e5e7eb;
   gap: 1rem;
@@ -393,10 +475,16 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
+.course-room {
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+  font-size: 0.9rem;
+}
+
 .alert-message {
   display: flex;
   gap: 0.75rem;
-  margin: 1rem;
+  margin: 1rem 1rem 0 1rem;
   padding: 1rem;
   border-radius: 0.75rem;
   border-left: 4px solid;
@@ -446,7 +534,7 @@ onMounted(() => {
   font-size: 1rem;
   font-weight: 500;
   color: #374151;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.25rem 0;
 }
 
 .session-time {
@@ -469,13 +557,15 @@ onMounted(() => {
 .bulk-actions {
   display: flex;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  justify-content: space-between;
 }
 
 .action-button {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem; 
   border: none;
+  width: 100%;
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -622,6 +712,16 @@ onMounted(() => {
 .custom-checkbox.checked {
   background: #10b981;
   border-color: #10b981;
+}
+
+.custom-checkbox.unchecked {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.custom-checkbox.unmarked {
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 .student-details {
@@ -786,5 +886,51 @@ onMounted(() => {
 
 .modal-button.primary:hover {
   background: #2563eb;
+}
+
+.submission-section,
+.already-submitted-section,
+.total-section {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.submission-section {
+  background: #f0f9ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.already-submitted-section {
+  background: #f0fdf4;
+  border-left: 3px solid #10b981;
+}
+
+.total-section {
+  background: #f8fafc;
+  border-left: 3px solid #64748b;
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.5rem 0;
+}
+
+.submission-section .section-title {
+  color: #1d4ed8;
+}
+
+.already-submitted-section .section-title {
+  color: #059669;
+}
+
+.total-section .section-title {
+  color: #475569;
+}
+
+.modal-body p {
+  margin: 0.25rem 0;
 }
 </style>

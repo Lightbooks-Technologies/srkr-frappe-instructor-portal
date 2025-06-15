@@ -41,11 +41,6 @@ const links = [
     icon: CalendarCheck,
   },
   {
-    label: 'Attendance',
-    to: '/attendance',
-    icon: UserCheck,
-  },
-  {
     label: 'Profile',
     to: '/profile',
     icon: User2,
