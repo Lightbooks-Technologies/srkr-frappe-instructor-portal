@@ -155,6 +155,27 @@
       </div>
     </div>
 
+    <!-- Success Modal -->
+    <div v-if="showSuccessModal" class="modal-overlay" @click="closeSuccessModal">
+      <div class="modal-content success" @click.stop>
+        <div class="modal-header">
+          <div class="success-icon">
+            <FeatherIcon name="check-circle" class="w-5 h-5 text-green-600" />
+          </div>
+          <h3>{{ successTitle }}</h3>
+          <button @click="closeSuccessModal" class="close-button">
+            <FeatherIcon name="x" class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>{{ successMessage }}</p>
+        </div>
+        <div class="modal-actions">
+          <button @click="closeSuccessModal" class="modal-button primary">OK</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Error Modal -->
     <div v-if="showErrorModal" class="modal-overlay" @click="closeErrorModal">
       <div class="modal-content error" @click.stop>
@@ -191,6 +212,9 @@ const props = defineProps({
   }
 })
 
+// Define emit for parent communication
+const emit = defineEmits(['refresh-data'])
+
 // Local reactive copy of students for manipulation
 const students = ref([...props.students])
 
@@ -210,7 +234,10 @@ watch(() => props.students, (newStudents) => {
 const isEditMode = ref(false)
 const isSubmitting = ref(false)
 const showConfirmModal = ref(false)
+const showSuccessModal = ref(false)
 const showErrorModal = ref(false)
+const successTitle = ref('')
+const successMessage = ref('')
 const errorTitle = ref('')
 const errorMessage = ref('')
 
@@ -301,6 +328,16 @@ const closeConfirmModal = () => {
   showConfirmModal.value = false
 }
 
+const closeSuccessModal = () => {
+  showSuccessModal.value = false
+  // Emit event to parent to refresh data
+  emit('refresh-data')
+}
+
+const closeErrorModal = () => {
+  showErrorModal.value = false
+}
+
 const confirmSubmit = async () => {
   showConfirmModal.value = false
   isSubmitting.value = true
@@ -360,8 +397,33 @@ const confirmSubmit = async () => {
     const result = await response.json()
     console.log('Attendance submitted successfully:', result)
     
-    // Show success message or redirect
-    // router.push('/attendance-success') or similar
+    // Parse server messages if present
+    if (result._server_messages) {
+      try {
+        const serverMessages = JSON.parse(result._server_messages)
+        if (serverMessages.length > 0) {
+          const message = JSON.parse(serverMessages[0])
+          successTitle.value = message.title || 'Success'
+          successMessage.value = message.message || 'Attendance has been marked successfully.'
+        } else {
+          successTitle.value = 'Success'
+          successMessage.value = 'Attendance has been marked successfully.'
+        }
+      } catch (parseError) {
+        console.warn('Could not parse server messages:', parseError)
+        successTitle.value = 'Success'
+        successMessage.value = 'Attendance has been marked successfully.'
+      }
+    } else {
+      successTitle.value = 'Success'
+      successMessage.value = 'Attendance has been marked successfully.'
+    }
+    
+    // Clear auto-save data on successful submission
+    localStorage.removeItem('attendance_draft')
+    
+    // Show success modal
+    showSuccessModal.value = true
     
   } catch (error) {
     console.error('Error submitting attendance:', error)
@@ -378,10 +440,6 @@ const confirmSubmit = async () => {
   } finally {
     isSubmitting.value = false
   }
-}
-
-const closeErrorModal = () => {
-  showErrorModal.value = false
 }
 
 // Optional: Auto-save functionality
@@ -802,6 +860,10 @@ onMounted(() => {
   width: 100%;
 }
 
+.modal-content.success {
+  border-top: 4px solid #10b981;
+}
+
 .modal-content.error {
   border-top: 4px solid #ef4444;
 }
@@ -823,6 +885,11 @@ onMounted(() => {
 }
 
 .error-icon {
+  display: flex;
+  align-items: center;
+}
+
+.success-icon {
   display: flex;
   align-items: center;
 }

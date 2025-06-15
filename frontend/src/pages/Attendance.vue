@@ -1,7 +1,8 @@
 <template>
   <Attendance v-if="!attendanceResource.loading && attendanceResource.data"
       :students="students"
-      :courseInfo="courseInfo"/>
+      :courseInfo="courseInfo"
+      @refresh-data="handleRefreshData"/>
 </template>
 
 <script setup>
@@ -45,35 +46,6 @@ const attendanceResource = createResource({
     
     // Set students data
     students.value = response || []
-    // students.value = [
-		// 	{
-		// 		"student": "EDU-STU-2025-00002",
-		// 		"student_name": "HARSHA VARDHAN JANUP",
-		// 		"group_roll_number": 1,
-		// 		"status": "Present"
-		// 	},
-		// 	{
-		// 		"student": "EDU-STU-2025-00003", 
-		// 		"student_name": "VARUN VARMA",
-		// 		"status": "Absent",
-		// 		"group_roll_number": 2
-		// 	},
-		// 	{
-		// 		"student": "EDU-STU-2025-00004",
-		// 		"student_name": "ARUN KUMAR REDDY",
-		// 		"group_roll_number": 3
-		// 	},
-		// 	{
-		// 		"student": "EDU-STU-2025-00005",
-		// 		"student_name": "PRIYA SHARMA",
-		// 		"group_roll_number": 4
-		// 	},
-		// 	{
-		// 		"student": "EDU-STU-2025-00006",
-		// 		"student_name": "RAJESH KUMAR",
-		// 		"group_roll_number": 5
-		// 	}
-		// ]
     
     console.log('Students loaded:', students.value.length)
   },
@@ -83,16 +55,16 @@ const attendanceResource = createResource({
   auto: false // Don't auto-load, we'll trigger manually
 })
 
-// Initialize component
-onMounted(() => {
-  console.log('Route parameters:', {
-    courseScheduleId: courseScheduleId.value,
-    studentGroup: studentGroup.value,
-    basedOn: basedOn.value,
-    courseInfo: courseInfo.value
-  })
+// Handle refresh data event from child component
+const handleRefreshData = () => {
+  console.log('Refreshing attendance data after successful submission...')
   
-  // Validate required parameters
+  // Reload the attendance data to get updated status
+  attendanceResource.reload()
+}
+
+// Function to fetch attendance data (can be called independently)
+const fetchAttendanceData = () => {
   if (courseScheduleId.value && studentGroup.value) {
     // Update resource params and fetch data
     attendanceResource.update({
@@ -109,5 +81,24 @@ onMounted(() => {
       studentGroup: studentGroup.value
     })
   }
+}
+
+// Initialize component
+onMounted(() => {
+  console.log('Route parameters:', {
+    courseScheduleId: courseScheduleId.value,
+    studentGroup: studentGroup.value,
+    basedOn: basedOn.value,
+    courseInfo: courseInfo.value
+  })
+  
+  // Fetch initial data
+  fetchAttendanceData()
+})
+
+// Expose methods if needed by parent components
+defineExpose({
+  fetchAttendanceData,
+  handleRefreshData
 })
 </script>
