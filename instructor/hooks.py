@@ -5,6 +5,10 @@ app_description = "Instructor Portal"
 app_email = "info@lightbooks.io"
 app_license = "mit"
 
+website_route_rules = [
+	{"from_route": "/instructor/<path:app_path>", "to_route": "instructor"},
+]
+
 # Apps
 # ------------------
 
