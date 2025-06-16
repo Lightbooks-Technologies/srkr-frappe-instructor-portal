@@ -39,7 +39,7 @@ export const sessionStore = defineStore('education-session', () => {
     url: 'logout',
     onSuccess() {
       user.value = null
-      window.location.href = '/login'
+      window.location.href = '/login?redirect-to=/frontend/home'
     },
   })
 
