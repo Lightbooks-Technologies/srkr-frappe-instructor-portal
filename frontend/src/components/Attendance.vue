@@ -43,10 +43,16 @@
     <!-- Instructions and Actions -->
     <div class="actions-section">
       <div class="bulk-actions">
-        <button @click="markAllAsPresent" class="action-button mark-present">
+        <button 
+          @click="markAllAsPresent" 
+          class="action-button mark-present"
+          :disabled="allStudentsHaveStatus || studentsWithoutStatus.length === 0">
           Mark all as present
         </button>
-        <button @click="markAllAsAbsent" class="action-button mark-absent">
+        <button 
+          @click="markAllAsAbsent" 
+          class="action-button mark-absent"
+          :disabled="allStudentsHaveStatus || studentsWithoutStatus.length === 0">
           Mark all as absent
         </button>
         <!-- <button @click="resetAttendance" class="action-button reset">
@@ -630,12 +636,17 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .mark-present {
   background: #10b981;
   color: white;
 }
 
-.mark-present:hover {
+.mark-present:hover:not(:disabled) {
   background: #059669;
 }
 
@@ -644,7 +655,7 @@ onMounted(() => {
   color: white;
 }
 
-.mark-absent:hover {
+.mark-absent:hover:not(:disabled) {
   background: #dc2626;
 }
 
