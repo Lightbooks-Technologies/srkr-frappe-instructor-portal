@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "vite build --base=/assets/instructor/frontend/ && yarn copy-html-entry",
-    "copy-html-entry": "cp ../instructor/public/frontend/index.html ../instructor/www/instructor.html",
+    "copy-html-entry": "mkdir -p ../instructor/www && cp ../instructor/public/frontend/index.html ../instructor/www/instructor.html",
     "dev": "vite",
     "preview": "vite preview"
   },
