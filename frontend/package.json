@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "vite build --base=/assets/instructor/frontend/ && yarn copy-html-entry",
+    "build": "vite build --base=/assets/instructor/frontend/",
     "copy-html-entry": "cp ../instructor/public/frontend/index.html ../instructor/www/instructor.html",
     "dev": "vite",
     "preview": "vite preview"
