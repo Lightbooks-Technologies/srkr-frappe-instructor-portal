@@ -1,31 +1,31 @@
 {
   "name": "SRKR Instructor",
   "short_name": "SRKR Instructor",
-  "start_url": "/instructor",
+  "start_url": "/login?redirect-to=/instructor/home",
   "display": "standalone",
-  "description": "The dedicated mobile workspace for faculty, teachers, and educators at institutions using the Lightbooks Education Platform.",
+  "description": "The dedicated mobile workspace for faculty, teachers, and educators at institutions using the SRKR Platform.",
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-192.png",
+      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-white-bg-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-192.png",
+      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-white-bg-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-512.png",
+      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-white-bg-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-512.png",
+      "src": "https://s3.ap-south-1.amazonaws.com/images.aasaan.shop/srkr-frappe/srkr-logo-white-bg-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
