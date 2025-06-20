@@ -21,7 +21,9 @@ import { createEventModalPlugin } from '@schedule-x/event-modal'
 import { createResource } from 'frappe-ui'
 import { ref, watch, shallowRef } from 'vue'
 import { studentStore } from '@/stores/student'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const { getStudentInfo } = studentStore()
 const instructorInfo = getStudentInfo().value
 
@@ -31,6 +33,21 @@ const currentRange = ref({
   start: null,
   end: null
 })
+
+// Navigate to attendance page with class data
+const navigateToAttendance = (eventData) => {
+  router.push({
+    path: '/attendance',
+    query: {
+      courseScheduleId: eventData.scheduleId,
+      studentGroup: eventData.studentGroup,
+      basedOn: 'Course Schedule',
+      courseName: eventData.title,
+      courseTime: `${formatTimeTo12Hour(eventData.start)} - ${formatTimeTo12Hour(eventData.end)}`,
+      courseRoom: eventData.location
+    }
+  })
+}
 
 // Helper function to get first day of month
 const getFirstDayOfMonth = (date) => {
@@ -78,6 +95,102 @@ const formatTimeTo12Hour = (datetimeStr) => {
   } else {
     return `${hour24 - 12}:${minute} PM`
   }
+}
+
+// Add custom styles and handle modal customization after calendar creation
+const addCustomModalStyles = () => {
+  const style = document.createElement('style')
+  style.id = 'custom-attendance-styles'
+  style.textContent = `
+    .custom-attendance-btn {
+      background: linear-gradient(135deg, #4c63d2 0%, #6366f1 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 16px;
+      width: 100%;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .custom-attendance-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(76, 99, 210, 0.3);
+    }
+    
+    .custom-attendance-btn:active {
+      transform: translateY(0);
+    }
+  `
+  
+  // Remove existing style if present
+  const existingStyle = document.getElementById('custom-attendance-styles')
+  if (existingStyle) {
+    existingStyle.remove()
+  }
+  
+  document.head.appendChild(style)
+}
+
+// Function to customize the modal after it's created
+const customizeEventModal = (eventData) => {
+  // Wait a bit for the modal to be created
+  setTimeout(() => {
+    const modal = document.querySelector('.sx__event-modal')
+    console.log('Customizing modal for event:', eventData, 'Modal:', modal)
+    
+    if (modal) {
+      // Check if attendance button already exists
+      if (!modal.querySelector('.custom-attendance-btn')) {
+        // Try different selectors to find the right content area
+        let content = modal.querySelector('.sx__event-modal__content')
+        
+        if (!content) {
+          // If no content div exists, try to find the description or just append to modal
+          content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
+        }
+        
+        console.log('Content element found:', content)
+        
+        if (content) {
+          const attendanceBtn = document.createElement('button')
+          attendanceBtn.className = 'custom-attendance-btn'
+          attendanceBtn.innerHTML = 'Take Attendance'
+          
+          attendanceBtn.addEventListener('click', () => {
+            // Find the full event data from our events array
+            const fullEventData = events.value.find(event => event.id === eventData.id)
+            console.log('events:', events.value, 'Full event data:', fullEventData, 'Event:', eventData)
+            if (fullEventData) {
+              navigateToAttendance(fullEventData)
+            }
+            // Close the modal
+            const modalToClose = document.querySelector('.sx__event-modal')
+            if (modalToClose && modalToClose.parentNode) {
+              modalToClose.parentNode.removeChild(modalToClose)
+            }
+          })
+          
+          // Add some spacing before the button
+          const spacer = document.createElement('div')
+          spacer.style.marginTop = '16px'
+          content.appendChild(spacer)
+          content.appendChild(attendanceBtn)
+        } else {
+          console.error('Could not find content area in modal')
+        }
+      }
+    } else {
+      console.error('Modal not found')
+    }
+  }, 200) // Increased timeout to give more time for modal to render
 }
 
 const scheduleResource = createResource({
@@ -173,7 +286,9 @@ calendarApp.value = createCalendar({
     onRangeUpdate: handleRangeUpdate,
     onEventClick: (calendarEvent) => {
       console.log('Event clicked:', calendarEvent)
-      // Handle event click if needed
+      // Add custom styles and customize the modal
+      addCustomModalStyles()
+      customizeEventModal(calendarEvent)
     },
   },
 })

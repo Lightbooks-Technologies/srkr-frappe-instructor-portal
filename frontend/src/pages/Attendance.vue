@@ -17,8 +17,8 @@ const { getStudentInfo } = studentStore()
 const instructorInfo = getStudentInfo().value
 
 // Get parameters from route (passed from home page class item)
-const courseScheduleId = ref(route.params.courseScheduleId)
-const studentGroup = ref(route.params.studentGroup)
+const courseScheduleId = ref(route.query.courseScheduleId)
+const studentGroup = ref(route.query.studentGroup)
 const basedOn = ref(route.query.basedOn || 'Course Schedule')
 
 // Course info from route query

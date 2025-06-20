@@ -69,20 +69,15 @@ const todaysClasses = computed(() => {
 
 // Navigate to attendance page with class data
 const navigateToAttendance = (classItem) => {
-  console.log('Navigating to attendance for class:', classItem)
-  console.log('Navigating to attendance for class:', classItem.id)
-  console.log('Navigating to attendance for class:', classItem.studentGroup)
   router.push({
-    name: 'Attendance', // or path: '/attendance'
-    params: {
-      courseScheduleId: classItem.id,
-      studentGroup: classItem.studentGroup
-    },
+    path: '/attendance',
     query: {
       basedOn: 'Course Schedule',
       courseName: classItem.name,
       courseTime: classItem.time,
-      courseRoom: classItem.room
+      courseRoom: classItem.room,
+      courseScheduleId: classItem.id,
+      studentGroup: classItem.studentGroup
     }
   })
 }
@@ -90,7 +85,6 @@ const navigateToAttendance = (classItem) => {
 // Get current greeting based on local time
 function getGreeting() {
   const hour = new Date().getHours()
-  console.log('Current Local Hour:', hour)
   if (hour < 12) return 'Good Morning'
   if (hour < 17) return 'Good Afternoon'
   return 'Good Evening'
