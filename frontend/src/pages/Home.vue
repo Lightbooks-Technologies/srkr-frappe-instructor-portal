@@ -64,7 +64,8 @@ const scheduleResource = createResource({
       startTime: classItem.start_time,
       endTime: classItem.end_time,
       color: classItem.color,
-      studentGroup: classItem.student_group
+      studentGroup: classItem.student_group,
+      attendance_summary: classItem.attendance_summary,
     }))
     
     // Update events object
