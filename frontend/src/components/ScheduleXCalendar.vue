@@ -75,6 +75,7 @@ const getCurrentMonthRange = () => {
   }
 }
 
+// This function is still useful for passing time to the navigation query
 const formatTimeTo12Hour = (datetimeStr) => {
   if (!datetimeStr) return '12:00 AM'
   
@@ -130,7 +131,6 @@ const addCustomModalStyles = () => {
     }
   `
   
-  // Remove existing style if present
   const existingStyle = document.getElementById('custom-attendance-styles')
   if (existingStyle) {
     existingStyle.remove()
@@ -141,23 +141,14 @@ const addCustomModalStyles = () => {
 
 // Function to customize the modal after it's created
 const customizeEventModal = (eventData) => {
-  // Wait a bit for the modal to be created
   setTimeout(() => {
     const modal = document.querySelector('.sx__event-modal')
-    console.log('Customizing modal for event:', eventData, 'Modal:', modal)
-    
     if (modal) {
-      // Check if attendance button already exists
       if (!modal.querySelector('.custom-attendance-btn')) {
-        // Try different selectors to find the right content area
         let content = modal.querySelector('.sx__event-modal__content')
-        
         if (!content) {
-          // If no content div exists, try to find the description or just append to modal
           content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
         }
-        
-        console.log('Content element found:', content)
         
         if (content) {
           const attendanceBtn = document.createElement('button')
@@ -165,32 +156,38 @@ const customizeEventModal = (eventData) => {
           attendanceBtn.innerHTML = 'Take Attendance'
           
           attendanceBtn.addEventListener('click', () => {
-            // Find the full event data from our events array
             const fullEventData = events.value.find(event => event.id === eventData.id)
-            console.log('events:', events.value, 'Full event data:', fullEventData, 'Event:', eventData)
             if (fullEventData) {
               navigateToAttendance(fullEventData)
             }
-            // Close the modal
             const modalToClose = document.querySelector('.sx__event-modal')
             if (modalToClose && modalToClose.parentNode) {
               modalToClose.parentNode.removeChild(modalToClose)
             }
           })
           
-          // Add some spacing before the button
           const spacer = document.createElement('div')
           spacer.style.marginTop = '16px'
           content.appendChild(spacer)
           content.appendChild(attendanceBtn)
-        } else {
-          console.error('Could not find content area in modal')
         }
       }
-    } else {
-      console.error('Modal not found')
     }
-  }, 200) // Increased timeout to give more time for modal to render
+  }, 200)
+}
+
+// NEW: Helper function to determine contrasting text color (black or white) for a given background hex color.
+const getContrastingTextColor = (hexColor) => {
+  if (!hexColor) return '#000000';
+  const color = hexColor.trim().replace('#', '');
+  if (color.length !== 6) return '#000000';
+  
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? '#000000' : '#FFFFFF';
 }
 
 const scheduleResource = createResource({
@@ -200,20 +197,38 @@ const scheduleResource = createResource({
     start_date: getCurrentMonthRange().start,
     end_date: getCurrentMonthRange().end,
   },
+  // MODIFIED: Updated onSuccess to handle event colors
   onSuccess: (response) => {
-    let schedule = []
+    const schedule = []
+    const calendarConfigs = {} // To store calendar colors
+
     response.forEach((classSchedule, index) => {
-      console.log('classSchedule', classSchedule)
+      // Handle inconsistent API key for calendar ID ('calendar_id' vs 'calendarid')
+      const calendarId = classSchedule.calendar_id || classSchedule.calendarid;
+      // Handle potential newlines in color string from API and provide a default
+      const eventColor = classSchedule.color ? classSchedule.color.trim() : '#d1e5f7';
       
-      // Use the full datetime strings directly
+      // If we haven't created a calendar config for this ID yet, create it now
+      if (calendarId && !calendarConfigs[calendarId]) {
+        const textColor = getContrastingTextColor(eventColor);
+        calendarConfigs[calendarId] = {
+          colorName: calendarId,
+          // For simplicity, we use the same colors for light and dark themes
+          lightColors: {
+            main: eventColor, // Color for the event dot/stripe
+            container: eventColor, // Background color for the event
+            onContainer: textColor, // Text color for the event
+          },
+          darkColors: {
+            main: eventColor,
+            container: eventColor,
+            onContainer: textColor,
+          },
+        };
+      }
+      
       const startDateTime = classSchedule.start_time
       const endDateTime = classSchedule.end_time
-      
-      // Format times for display (12-hour format)
-      const displayStartTime = formatTimeTo12Hour(classSchedule.start_time)
-      const displayEndTime = formatTimeTo12Hour(classSchedule.end_time)
-      
-      console.log('Event times:', { startDateTime, endDateTime, displayStartTime, displayEndTime })
       
       schedule.push({
         id: `${classSchedule.course_schedule_id}-${index}`,
@@ -222,18 +237,19 @@ const scheduleResource = createResource({
         end: endDateTime,
         description: `Room: ${classSchedule.room}\nGroup: ${classSchedule.student_group}`,
         location: classSchedule.room,
-        calendarId: classSchedule.calendar_id || 'default',
+        calendarId: calendarId || 'default', // Assign the calendarId to the event
         // Additional data for reference
         courseId: classSchedule.course_id,
         studentGroup: classSchedule.student_group,
         scheduleId: classSchedule.course_schedule_id,
       })
     })
-    console.log('Formatted schedule:', schedule)
+    
     events.value = schedule
     
-    // Update calendar events
+    // Update calendar events and also the calendar configurations for colors
     if (calendarApp.value) {
+      calendarApp.value.calendars.set(calendarConfigs);
       calendarApp.value.events.set(schedule)
     }
   },
@@ -245,8 +261,6 @@ const scheduleResource = createResource({
 
 // Function to fetch schedule for a specific date range
 const fetchScheduleForRange = (startDate, endDate) => {
-  console.log('Fetching schedule for range:', startDate, 'to', endDate)
-  
   scheduleResource.update({
     params: {
       instructor: instructorInfo.instructor_record_id,
@@ -254,39 +268,36 @@ const fetchScheduleForRange = (startDate, endDate) => {
       end_date: endDate,
     }
   })
-  
   scheduleResource.fetch()
 }
 
 // Handle range updates from calendar navigation
 const handleRangeUpdate = (range) => {
-  console.log('Calendar range updated:', range)
-  
   const startDate = formatDateForAPI(new Date(range.start))
   const endDate = formatDateForAPI(new Date(range.end))
   
-  // Only fetch if the range actually changed
   if (currentRange.value.start !== startDate || currentRange.value.end !== endDate) {
     currentRange.value = { start: startDate, end: endDate }
     fetchScheduleForRange(startDate, endDate)
   }
 }
 
-// Create the calendar instance
+// MODIFIED: Create the calendar instance with updated settings
 calendarApp.value = createCalendar({
-  locale: 'en-GB',
+  // Switched to 'en-US' locale to display time in 12-hour format (e.g., 2:00 PM)
+  locale: 'en-US',
   selectedDate: new Date().toLocaleDateString('en-CA', {
     timeZone: 'Asia/Kolkata'
   }),
   views: [viewWeek, viewMonthAgenda, viewDay, viewMonthGrid],
   defaultView: viewMonthGrid.name,
   plugins: [createEventModalPlugin()],
+  // Start with an empty calendars object, which will be populated dynamically
+  calendars: {},
   events: events.value,
   callbacks: {
     onRangeUpdate: handleRangeUpdate,
     onEventClick: (calendarEvent) => {
-      console.log('Event clicked:', calendarEvent)
-      // Add custom styles and customize the modal
       addCustomModalStyles()
       customizeEventModal(calendarEvent)
     },
@@ -306,7 +317,6 @@ const navigateToMonth = (year, month) => {
   const startDate = formatDateForAPI(getFirstDayOfMonth(targetDate))
   const endDate = formatDateForAPI(getLastDayOfMonth(targetDate))
   
-  // Update calendar's selected date
   if (calendarApp.value) {
     calendarApp.value.selectedDate = formatDateForAPI(targetDate)
   }

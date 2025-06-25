@@ -20,23 +20,47 @@
     <!-- Today's Classes Section -->
     <div class="classes-section">
       <div class="section-header">
-        <h3 class="section-title">Today's Classes</h3>
-        <router-link to="/schedule" class="view-all-link">
-          <span>View All</span>
-          <FeatherIcon name="chevron-right" class="w-4 h-4 ml-1" />
-        </router-link>
+        <h3 class="section-title">{{ getDateTitle() }}</h3>
+        <div class="navigation-controls">
+          <!-- Reset to Today Button (only show if not viewing today) -->
+          <button 
+            v-if="!isToday" 
+            @click="resetToToday" 
+            class="reset-btn"
+            title="Go to Today"
+          >
+            <FeatherIcon name="calendar" class="w-4 h-4" />
+          </button>
+          
+          <!-- Previous Day Button -->
+          <button @click="goToPreviousDay" class="nav-btn">
+            <FeatherIcon name="chevron-left" class="w-4 h-4" />
+          </button>
+          
+          <!-- Next Day Button -->
+          <button @click="goToNextDay" class="nav-btn">
+            <FeatherIcon name="chevron-right" class="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      <div v-if="!todaysClasses || todaysClasses.length === 0" class="no-classes-card">
+      <div v-if="loading" class="loading-card">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">Loading classes...</p>
+        </div>
+      </div>
+
+      <div v-else-if="!currentClasses || currentClasses.length === 0" class="no-classes-card">
         <div class="no-classes-content">
           <FeatherIcon name="calendar" class="w-12 h-12 text-gray-400 mb-4" />
-          <h4 class="no-classes-title">No Classes Today</h4>
-          <p class="no-classes-subtitle">Enjoy your free day!</p>
+          <h4 class="no-classes-title">No Classes {{ isToday ? 'Today' : 'on this day' }}</h4>
+          <p class="no-classes-subtitle">{{ isToday ? 'Enjoy your free day!' : 'Try another date' }}</p>
         </div>
       </div>
       
       <div v-else class="classes-list">
-        <div v-for="(classItem, index) in todaysClasses" :key="classItem.id || index" 
+        <div v-for="(classItem, index) in currentClasses" :key="classItem.id || index" 
              class="class-card"
              :class="{ 'ongoing-highlight': getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing' }"
              @click="navigateToAttendance(classItem)">
@@ -95,7 +119,7 @@
 
 <script setup>
 import { FeatherIcon } from 'frappe-ui'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -107,10 +131,100 @@ const props = defineProps({
   }
 })
 
-// Get today's classes from props
-const todaysClasses = computed(() => {
-  return props.events?.todaysClasses || []
+// Emit events to parent component
+const emit = defineEmits(['dateChanged', 'resetToToday'])
+
+// Current selected date
+const currentDate = ref(new Date())
+const loading = ref(false)
+
+// Watch for changes in the props.events.todaysClasses to reset loading
+watch(
+  () => props.events?.todaysClasses,
+  (newClasses) => {
+    console.log('Classes data changed:', newClasses)
+    if (newClasses !== undefined) {
+      loading.value = false
+    }
+  },
+  { deep: true }
+)
+
+// Computed properties
+const isToday = computed(() => {
+  const today = new Date()
+  return currentDate.value.toDateString() === today.toDateString()
 })
+
+const currentClasses = computed(() => {
+  console.log('currentClasses computed called')
+  console.log('props.events?.todaysClasses:', props.events?.todaysClasses)
+  console.log('isToday.value:', isToday.value)
+  console.log('currentDate.value:', currentDate.value)
+  
+  if (!props.events?.todaysClasses) {
+    console.log('No todaysClasses data available')
+    return []
+  }
+  
+  // Always return the todaysClasses from props
+  // The parent should update this data when date changes
+  console.log('Returning classes:', props.events.todaysClasses)
+  return props.events.todaysClasses
+})
+
+// Navigation functions
+const goToPreviousDay = async () => {
+  const newDate = new Date(currentDate.value)
+  newDate.setDate(newDate.getDate() - 1)
+  currentDate.value = newDate
+  
+  await fetchClassesForDate(newDate)
+}
+
+const goToNextDay = async () => {
+  const newDate = new Date(currentDate.value)
+  newDate.setDate(newDate.getDate() + 1)
+  currentDate.value = newDate
+  
+  await fetchClassesForDate(newDate)
+}
+
+const resetToToday = async () => {
+  currentDate.value = new Date()
+  emit('resetToToday')
+}
+
+const fetchClassesForDate = async (date) => {
+  loading.value = true
+  
+  try {
+    // Emit event to parent to fetch data for specific date
+    emit('dateChanged', {
+      date: date.toLocaleDateString('en-CA'), // YYYY-MM-DD format
+      dateObj: date
+    })
+  } catch (error) {
+    console.error('Error fetching classes for date:', error)
+    loading.value = false
+  }
+  // Note: loading.value will be set to false by the watcher when new data arrives
+}
+
+// Get title based on current date
+const getDateTitle = () => {
+  if (isToday.value) {
+    return "Today's Classes"
+  }
+  
+  const options = { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric' 
+  }
+  
+  return currentDate.value.toLocaleDateString('en-US', options) + " Classes"
+}
 
 // Navigate to attendance page with class data
 const navigateToAttendance = (classItem) => {
@@ -226,7 +340,9 @@ defineExpose({
   hasAttendanceData,
   getAttendancePercentage,
   getPercentageBadgeClass,
-  getProgressBarClass
+  getProgressBarClass,
+  currentDate,
+  isToday
 })
 </script>
 
@@ -334,20 +450,84 @@ defineExpose({
   font-size: 1.25rem;
   font-weight: 600;
   color: #1f2937;
+  flex: 1;
 }
 
-.view-all-link {
+/* Navigation Controls */
+.navigation-controls {
   display: flex;
   align-items: center;
-  color: #0d9488;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-decoration: none;
-  transition: color 0.2s;
+  gap: 0.5rem;
 }
 
-.view-all-link:hover {
-  color: #f472b6;
+.nav-btn, .reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover, .reset-btn:hover {
+  background: #f9fafb;
+  border-color: #0d9488;
+  color: #0d9488;
+  transform: translateY(-1px);
+}
+
+.reset-btn {
+  background: #0d9488;
+  color: white;
+  border-color: #0d9488;
+  margin-right: 0.25rem;
+}
+
+.reset-btn:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: white;
+}
+
+/* Loading Card */
+.loading-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #0d9488;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
 }
 
 /* No Classes Card */
@@ -516,15 +696,6 @@ defineExpose({
   position: relative;
 }
 
-/* .incomplete-accent {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 3px;
-  height: 100%;
-  background: #dc2626;
-} */
-
 /* Complete Attendance Styling */
 .attendance-complete {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -534,16 +705,6 @@ defineExpose({
   position: relative;
   overflow: hidden;
 }
-
-/* .attendance-complete::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
-} */
 
 .attendance-header {
   display: flex;
@@ -708,6 +869,11 @@ defineExpose({
   
   .class-room {
     font-size: 0.75rem;
+  }
+  
+  .nav-btn, .reset-btn {
+    width: 2.25rem;
+    height: 2.25rem;
   }
 }
 </style>
