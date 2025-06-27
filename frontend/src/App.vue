@@ -2,9 +2,9 @@
   <div>
     <div class="flex h-screen w-screen">
       <!-- Desktop Sidebar - hidden on mobile -->
-      <div class="hidden md:block h-full border-r bg-gray-50">
+      <!-- <div class="hidden md:block h-full border-r bg-gray-50">
         <Sidebar />
-      </div>
+      </div> -->
       
       <div class="flex-1 flex flex-col h-full">
         <!-- Header with fixed height of 48px -->
@@ -18,7 +18,7 @@
         </div>
         
         <!-- Mobile Bottom Navigation - hidden on desktop with fixed height of 64px -->
-        <div class="md:hidden h-16 flex-shrink-0 bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+        <div class="xl:hidden h-16 flex-shrink-0 bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
           <BottomNavigation />
         </div>
       </div>
