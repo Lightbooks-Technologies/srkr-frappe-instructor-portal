@@ -79,7 +79,6 @@ const getCurrentMonthRange = () => {
 const formatTimeTo12Hour = (datetimeStr) => {
   if (!datetimeStr) return '12:00 AM'
   
-  // Extract time part from "YYYY-MM-DD HH:MM" format
   const timePart = datetimeStr.split(' ')[1]
   if (!timePart) return '12:00 AM'
   
@@ -176,20 +175,6 @@ const customizeEventModal = (eventData) => {
   }, 200)
 }
 
-// NEW: Helper function to determine contrasting text color (black or white) for a given background hex color.
-const getContrastingTextColor = (hexColor) => {
-  if (!hexColor) return '#000000';
-  const color = hexColor.trim().replace('#', '');
-  if (color.length !== 6) return '#000000';
-  
-  const r = parseInt(color.substring(0, 2), 16);
-  const g = parseInt(color.substring(2, 4), 16);
-  const b = parseInt(color.substring(4, 6), 16);
-  
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 128) ? '#000000' : '#FFFFFF';
-}
-
 const scheduleResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.get_instructor_schedule',
   params: {
@@ -197,32 +182,34 @@ const scheduleResource = createResource({
     start_date: getCurrentMonthRange().start,
     end_date: getCurrentMonthRange().end,
   },
-  // MODIFIED: Updated onSuccess to handle event colors
   onSuccess: (response) => {
     const schedule = []
     const calendarConfigs = {} // To store calendar colors
 
     response.forEach((classSchedule, index) => {
-      // Handle inconsistent API key for calendar ID ('calendar_id' vs 'calendarid')
       const calendarId = classSchedule.calendar_id || classSchedule.calendarid;
-      // Handle potential newlines in color string from API and provide a default
-      const eventColor = classSchedule.color ? classSchedule.color.trim() : '#d1e5f7';
+      // Use the color from the API for the background, with a fallback.
+      const eventBackgroundColor = classSchedule.color ? classSchedule.color.trim() : '#ede9fe'; // Default to a light purple
       
       // If we haven't created a calendar config for this ID yet, create it now
       if (calendarId && !calendarConfigs[calendarId]) {
-        const textColor = getContrastingTextColor(eventColor);
+        // --- MODIFIED to match the image style ---
+        // The left border color of the event item.
+        const eventSidebarColor = '#16a34a'; // A green color to match the image's accent
+        // The text color of the event.
+        const eventTextColor = '#4338ca'; // A dark indigo color to match the image
+        
         calendarConfigs[calendarId] = {
           colorName: calendarId,
-          // For simplicity, we use the same colors for light and dark themes
           lightColors: {
-            main: eventColor, // Color for the event dot/stripe
-            container: eventColor, // Background color for the event
-            onContainer: textColor, // Text color for the event
+            main: eventSidebarColor,         // This sets the color of the left border in the agenda view
+            container: eventBackgroundColor, // This sets the background of the event
+            onContainer: eventTextColor,     // This sets the text color
           },
-          darkColors: {
-            main: eventColor,
-            container: eventColor,
-            onContainer: textColor,
+          darkColors: { // You can define different colors for dark mode
+            main: eventSidebarColor,
+            container: eventBackgroundColor,
+            onContainer: eventTextColor,
           },
         };
       }
@@ -237,8 +224,7 @@ const scheduleResource = createResource({
         end: endDateTime,
         description: `Room: ${classSchedule.room}\nGroup: ${classSchedule.student_group}`,
         location: classSchedule.room,
-        calendarId: calendarId || 'default', // Assign the calendarId to the event
-        // Additional data for reference
+        calendarId: calendarId || 'default',
         courseId: classSchedule.course_id,
         studentGroup: classSchedule.student_group,
         scheduleId: classSchedule.course_schedule_id,
@@ -247,7 +233,7 @@ const scheduleResource = createResource({
     
     events.value = schedule
     
-    // Update calendar events and also the calendar configurations for colors
+    // Update calendar with new events and new color configurations
     if (calendarApp.value) {
       calendarApp.value.calendars.set(calendarConfigs);
       calendarApp.value.events.set(schedule)
@@ -284,16 +270,15 @@ const handleRangeUpdate = (range) => {
 
 // MODIFIED: Create the calendar instance with updated settings
 calendarApp.value = createCalendar({
-  // Switched to 'en-US' locale to display time in 12-hour format (e.g., 2:00 PM)
   locale: 'en-US',
   selectedDate: new Date().toLocaleDateString('en-CA', {
     timeZone: 'Asia/Kolkata'
   }),
   views: [viewWeek, viewMonthAgenda, viewDay, viewMonthGrid],
-  defaultView: viewMonthGrid.name,
+  // Set default view to Month Agenda to match the image
+  defaultView: viewMonthAgenda.name,
   plugins: [createEventModalPlugin()],
-  // Start with an empty calendars object, which will be populated dynamically
-  calendars: {},
+  calendars: {}, // Start with empty calendars, to be populated from the API
   events: events.value,
   callbacks: {
     onRangeUpdate: handleRangeUpdate,
@@ -344,12 +329,61 @@ defineExpose({
 })
 </script>
 
+<!-- NEW: Added custom styles to match the UI in the image -->
 <style>
+/* Remove default borders and adjust spacing to match the design */
 .sx__calendar {
   border-radius: 0;
-  border-width: 0 0 1px 0;
+  border-width: 0;
+  --sx-color-background: #fff; /* Set a clean white background */
 }
+
+/* Style for the event items in the agenda list */
+.sx__month-agenda-event {
+  border-radius: 0.5rem; /* 8px rounded corners */
+  margin-bottom: 0.75rem; /* 12px space between items */
+  padding: 0.75rem 1rem; /* 12px vertical, 16px horizontal padding */
+  border: none; /* Remove default border */
+  border-left-width: 5px; /* Make the left accent border thicker */
+  border-left-style: solid;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Style for the event title */
+.sx__month-agenda-event-title {
+  font-weight: 600; /* Bolder title */
+  font-size: 0.95rem;
+}
+
+/* Style for the event time, making it slightly smaller and lighter */
+.sx__month-agenda-event-time {
+  opacity: 0.8;
+  font-size: 0.8rem;
+}
+
+/* Style the dots under dates in the grid view to match the green accent */
+.sx__month-grid-day-event-dot {
+  background: #16a34a !important;
+  width: 5px;
+  height: 5px;
+}
+
+/* Style the selected day in the grid view with a green border */
+.sx__month-grid-day.sx__is-selected {
+  background-color: transparent !important;
+}
+
+.sx__month-grid-day.sx__is-selected .sx__month-grid-day-date {
+  background-color: transparent !important;
+  outline: 2px solid #16a34a; /* Green outline */
+  color: #16a34a !important;
+}
+
 .sx__month-grid-day__events {
   min-height: 60px;
+}
+
+.sx__month-agenda-events {
+  margin: 20px 0;
 }
 </style>

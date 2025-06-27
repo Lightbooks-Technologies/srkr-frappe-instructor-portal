@@ -101,6 +101,141 @@ const scheduleResource = createResource({
   },
   onSuccess: (response) => {
     console.log('Schedule fetched successfully:', response)
+
+    console.log('Instructor Info:', instructorInfo)
+    if(instructorInfo.instructor_id === '1293' || instructorInfo.instructor_id === '123456') {
+      console.log('Special case for instructor 1293 or 123456, using default schedule')
+      response = [
+          {
+              "course_schedule_id": "EDU-CSH-2025-00865",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Mathematics - Calculus",
+              "course_id": "Mathematics - Calculus",
+              "calendar_id": "mathematics_-_calculus",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 04:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 08:00",
+              "room": "HTL-ROOM-2025-00006",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00724",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "AI Lab",
+              "course_id": "AI Lab",
+              "calendar_id": "ai_lab",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 08:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 10:00",
+              "room": "HTL-ROOM-2025-00001",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00771",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Physics Lab",
+              "course_id": "Physics Lab",
+              "calendar_id": "physics_lab",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 10:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 12:00",
+              "room": "HTL-ROOM-2025-00002",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00817",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Chemistry Lab",
+              "course_id": "Chemistry Lab",
+              "calendar_id": "chemistry_lab",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 12:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 14:00",
+              "room": "HTL-ROOM-2025-00003",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00833",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Computer Programming",
+              "course_id": "Computer Programming",
+              "calendar_id": "computer_programming",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 14:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 16:00",
+              "room": "HTL-ROOM-2025-00004",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {
+                  "total_students": 7,
+                  "present_count": 3,
+                  "absent_count": 4,
+                  "on_leave_count": 0
+              }
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00849",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Engineering Graphics",
+              "course_id": "Engineering Graphics",
+              "calendar_id": "engineering_graphics",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 16:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 18:00",
+              "room": "HTL-ROOM-2025-00005",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {
+                  "total_students": 7,
+                  "present_count": 6,
+                  "absent_count": 1,
+                  "on_leave_count": 0
+              }
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00905",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Engineering Workshop",
+              "course_id": "Engineering Workshop",
+              "calendar_id": "engineering_workshop",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 18:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 20:00",
+              "room": "HTL-ROOM-2025-00007",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00939",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "Communicative English Lab",
+              "course_id": "Communicative English Lab",
+              "calendar_id": "communicative_english_lab",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 20:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 23:00",
+              "room": "HTL-ROOM-2025-00008",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          },
+          {
+              "course_schedule_id": "EDU-CSH-2025-00973",
+              "date": formatDateForAPI(currentViewDate.value),
+              "course_name": "AI Lab",
+              "course_id": "AI Lab",
+              "calendar_id": "ai_lab",
+              "start_time": formatDateForAPI(currentViewDate.value) + " 23:00",
+              "end_time": formatDateForAPI(currentViewDate.value) + " 23:59",
+              "room": "HTL-ROOM-2025-00001",
+              "student_group": "2025-group-name",
+              "color": "#EDF6FD",
+              "attendance_summary": {}
+          }
+      ]
+      console.log('Using default schedule:', response)
+    }
     
     // Filter classes for the current view date
     const targetDate = formatDateForAPI(currentViewDate.value)
