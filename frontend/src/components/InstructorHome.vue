@@ -63,7 +63,9 @@
         <div v-for="(classItem, index) in currentClasses" :key="classItem.id || index" 
              class="class-card"
              :class="{ 'ongoing-highlight': getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing' }"
-             @click="navigateToAttendance(classItem)">
+             :data-clickable="getClassStatus(classItem.startTime, classItem.endTime) !== 'upcoming'"
+             :data-status="getClassStatus(classItem.startTime, classItem.endTime)"
+             @click="handleClassClick(classItem)">
           <div class="class-main-content">
             <div class="class-info">
               <h4 class="class-name">{{ classItem.name }}</h4>
@@ -75,15 +77,27 @@
             </div>
           </div>
           
-          <!-- Attendance Status Bar - Only for completed classes -->
-          <div v-if="shouldShowAttendance(classItem)" class="attendance-status-bar">
-            <div v-if="!hasAttendanceData(classItem)" class="attendance-incomplete">
+          <!-- Attendance Status Bar - For completed, ongoing, and incomplete attendance -->
+          <div v-if="shouldShowAttendanceSection(classItem)" class="attendance-status-bar">
+            <!-- Take Attendance Button for Ongoing Classes -->
+            <div v-if="getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing'" class="take-attendance">
+              <div class="take-attendance-icon">
+                <FeatherIcon name="users" class="w-4 h-4" />
+              </div>
+              <span class="take-attendance-text">Take Attendance</span>
+              <div class="take-attendance-accent"></div>
+            </div>
+            
+            <!-- Incomplete Attendance for Completed Classes -->
+            <div v-else-if="!hasAttendanceData(classItem)" class="attendance-incomplete">
               <div class="incomplete-icon">
                 <FeatherIcon name="alert-circle" class="w-4 h-4" />
               </div>
               <span class="incomplete-text">Attendance Incomplete</span>
               <div class="incomplete-accent"></div>
             </div>
+            
+            <!-- Complete Attendance Display -->
             <div v-else class="attendance-complete">
               <div class="attendance-header">
                 <div class="attendance-icon">
@@ -226,6 +240,17 @@ const getDateTitle = () => {
   return currentDate.value.toLocaleDateString('en-US', options) + " Classes"
 }
 
+// Handle class card click with conditional navigation
+const handleClassClick = (classItem) => {
+  const status = getClassStatus(classItem.startTime, classItem.endTime)
+  
+  // Only allow navigation for completed classes and ongoing classes
+  if (status === 'completed' || status === 'ongoing') {
+    navigateToAttendance(classItem)
+  }
+  // Do nothing for upcoming classes (no navigation)
+}
+
 // Navigate to attendance page with class data
 const navigateToAttendance = (classItem) => {
   router.push({
@@ -293,6 +318,12 @@ function getStatusText(startTimeString, endTimeString) {
 function getStatusClass(startTimeString, endTimeString) {
   const status = getClassStatus(startTimeString, endTimeString)
   return `status-${status}`
+}
+
+// Check if attendance section should be shown (completed or ongoing classes)
+function shouldShowAttendanceSection(classItem) {
+  const status = getClassStatus(classItem.startTime, classItem.endTime)
+  return status === 'completed' || status === 'ongoing'
 }
 
 // Check if attendance should be shown (only for completed classes)
@@ -451,6 +482,9 @@ defineExpose({
   font-weight: 600;
   color: #1f2937;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Navigation Controls */
@@ -569,12 +603,22 @@ defineExpose({
   border-radius: 0.5rem;
   padding: 0.875rem 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  cursor: pointer;
   transition: all 0.2s;
 }
 
 .class-card:hover {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Only make clickable cards have cursor pointer */
+.class-card[data-clickable="true"] {
+  cursor: pointer;
+}
+
+/* Upcoming classes should have reduced opacity and no pointer */
+.class-card[data-status="upcoming"] {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .ongoing-highlight {
@@ -652,6 +696,61 @@ defineExpose({
   margin-top: 0.875rem;
 }
 
+/* Take Attendance Styling for Ongoing Classes */
+.take-attendance {
+  position: relative;
+  background-color: rgba(245, 158, 11, 0.2);
+  border: 1px solid #f59e0b;
+  border-radius: 0.5rem;
+  padding: 0.35rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  /* animation: glow 2s ease-in-out infinite alternate; */
+}
+
+/* .take-attendance::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(14, 165, 233, 0.1) 3px,
+    rgba(14, 165, 233, 0.1) 6px
+  );
+  pointer-events: none;
+} */
+
+.take-attendance-icon {
+  color: #f59e0b;
+  z-index: 1;
+  position: relative;
+}
+
+.take-attendance-text {
+  color: #f59e0b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 1;
+  text-transform: uppercase;
+  position: relative;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px rgba(14, 165, 233, 0.3);
+  }
+  to {
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.6);
+  }
+}
+
 /* Incomplete Attendance Styling */
 .attendance-incomplete {
   position: relative;
@@ -694,6 +793,7 @@ defineExpose({
   font-weight: 600;
   z-index: 1;
   position: relative;
+  text-transform: uppercase;
 }
 
 /* Complete Attendance Styling */
