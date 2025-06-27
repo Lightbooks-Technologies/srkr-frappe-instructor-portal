@@ -912,7 +912,7 @@ defineExpose({
 
 /* Upcoming classes should have reduced opacity and no pointer */
 .class-card[data-status="upcoming"] {
-  opacity: 0.7;
+  opacity: 0.8;
   cursor: default;
 }
 
