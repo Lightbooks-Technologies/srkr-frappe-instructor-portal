@@ -28,7 +28,7 @@
               : 'opacity-100 ml-2 w-auto'
           "
         >
-          <div class="text-base font-medium text-gray-900 leading-none">
+          <div class="text-base font-medium text-gray-900 leading-none truncate max-w-[125px]">
             {{ educationSettings?.name || 'Education' }}
           </div>
           <div class="mt-1 text-sm text-gray-700 leading-none">
