@@ -379,18 +379,20 @@ const confirmSubmit = async () => {
     
     // Add other required fields
     formData.append('student_group', props.courseInfo.studentGroup || '')
-    formData.append('course_schedule', props.courseInfo.scheduleId)
-    
-    console.log('Submitting attendance:', {
-      students_present: studentsPresent.length,
-      students_absent: studentsAbsent.length,
-      students_excluded: students.value.filter(s => s.status).length,
-      course_schedule: props.courseInfo.scheduleId,
-      student_group: props.courseInfo.studentGroup
-    })
+    // formData.append('course_schedule', props.courseInfo.scheduleId)
+    formData.append('course_schedule', props.courseInfo.allScheduleId || props.courseInfo.scheduleId)
+    // console.log('Submitting attendance:', props);
+    // console.log('Submitting attendance:', props.courseInfo);
+    // console.log('Submitting attendance:', {
+    //   students_present: studentsPresent.length,
+    //   students_absent: studentsAbsent.length,
+    //   students_excluded: students.value.filter(s => s.status).length,
+    //   course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
+    //   student_group: props.courseInfo.studentGroup
+    // })
     
     // Call the API
-    const response = await fetch('/api/method/education.education.api.mark_attendance', {
+    const response = await fetch('/api/method/srkr_frappe_app_api.instructor.api.mark_attendances', {
       method: 'POST',
       body: formData
     })

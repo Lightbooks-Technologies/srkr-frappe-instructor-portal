@@ -484,7 +484,8 @@ const navigateToAttendance = (classItem) => {
       courseTime: classItem.time,
       courseRoom: classItem.room,
       courseScheduleId: classItem.id,
-      studentGroup: classItem.studentGroup
+      studentGroup: classItem.studentGroup,
+      allCourseScheduleId: classItem.all_course_schedule_id ? classItem.all_course_schedule_id.join(',') : classItem.id
     }
   })
 }

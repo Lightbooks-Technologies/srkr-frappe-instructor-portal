@@ -44,7 +44,8 @@ const navigateToAttendance = (eventData) => {
       basedOn: 'Course Schedule',
       courseName: eventData.title,
       courseTime: `${formatTimeTo12Hour(eventData.start)} - ${formatTimeTo12Hour(eventData.end)}`,
-      courseRoom: eventData.location
+      courseRoom: eventData.location,
+      allCourseScheduleId: eventData.allCourseScheduleId ? eventData.allCourseScheduleId.join(',') : eventData.id
     }
   })
 }
@@ -175,6 +176,82 @@ const customizeEventModal = (eventData) => {
   }, 200)
 }
 
+
+// Function to combine consecutive courses with the same course_id
+const combineConsecutiveCourses = (scheduleData) => {
+  if (!scheduleData || scheduleData.length === 0) {
+    return []
+  }
+
+  // Sort by start_time to ensure proper ordering
+  const sortedData = [...scheduleData].sort((a, b) => 
+    new Date(a.start_time) - new Date(b.start_time)
+  )
+
+  const combined = []
+  let currentGroup = null
+
+  for (const course of sortedData) {
+    // If this is the first course or different course_id, start a new group
+    if (!currentGroup || currentGroup.course_id !== course.course_id) {
+      // Save the previous group if it exists
+      if (currentGroup) {
+        combined.push(currentGroup)
+      }
+      
+      // Start new group
+      currentGroup = {
+        ...course,
+        all_course_schedule_id: [course.course_schedule_id]
+      }
+    } else {
+      // Same course_id, check if it's consecutive
+      const currentEndTime = new Date(currentGroup.end_time)
+      const nextStartTime = new Date(course.start_time)
+      
+      // Consider courses consecutive if they are within 1 minute of each other
+      // This handles cases where end_time might be 21:00 and start_time is 21:00
+      const timeDiff = Math.abs(nextStartTime - currentEndTime)
+      const isConsecutive = timeDiff <= 60000 // 1 minute in milliseconds
+      
+      if (isConsecutive) {
+        // Extend the current group
+        currentGroup.end_time = course.end_time
+        currentGroup.all_course_schedule_id.push(course.course_schedule_id)
+        
+        // Merge attendance_summary if both exist
+        if (course.attendance_summary && Object.keys(course.attendance_summary).length > 0) {
+          if (!currentGroup.attendance_summary || Object.keys(currentGroup.attendance_summary).length === 0) {
+            currentGroup.attendance_summary = course.attendance_summary
+          } else {
+            // Merge attendance summaries by adding counts
+            currentGroup.attendance_summary = {
+              total_students: (currentGroup.attendance_summary.total_students || 0) + (course.attendance_summary.total_students || 0),
+              present_count: (currentGroup.attendance_summary.present_count || 0) + (course.attendance_summary.present_count || 0),
+              absent_count: (currentGroup.attendance_summary.absent_count || 0) + (course.attendance_summary.absent_count || 0),
+              on_leave_count: (currentGroup.attendance_summary.on_leave_count || 0) + (course.attendance_summary.on_leave_count || 0)
+            }
+          }
+        }
+      } else {
+        // Not consecutive, save current group and start new one
+        combined.push(currentGroup)
+        currentGroup = {
+          ...course,
+          all_course_schedule_id: [course.course_schedule_id]
+        }
+      }
+    }
+  }
+
+  // Don't forget to add the last group
+  if (currentGroup) {
+    combined.push(currentGroup)
+  }
+
+  return combined
+}
+
 const scheduleResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.get_instructor_schedule',
   params: {
@@ -185,8 +262,8 @@ const scheduleResource = createResource({
   onSuccess: (response) => {
     const schedule = []
     const calendarConfigs = {} // To store calendar colors
-
-    response.forEach((classSchedule, index) => {
+    const combinedResponse = combineConsecutiveCourses(response)
+    combinedResponse.forEach((classSchedule, index) => {
       const calendarId = classSchedule.calendar_id || classSchedule.calendarid;
       // Use the color from the API for the background, with a fallback.
       const eventBackgroundColor = classSchedule.color ? classSchedule.color.trim() : '#ede9fe'; // Default to a light purple
@@ -228,6 +305,7 @@ const scheduleResource = createResource({
         courseId: classSchedule.course_id,
         studentGroup: classSchedule.student_group,
         scheduleId: classSchedule.course_schedule_id,
+        allCourseScheduleId: classSchedule.all_course_schedule_id || [classSchedule.course_schedule_id],
       })
     })
     
