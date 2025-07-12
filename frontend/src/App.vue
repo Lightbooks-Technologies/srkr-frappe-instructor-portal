@@ -8,7 +8,7 @@
       
       <div class="flex-1 flex flex-col h-full">
         <!-- Header with fixed height of 48px -->
-        <div class="h-12 flex-shrink-0">
+        <div class="h-[3.5rem] flex-shrink-0">
           <Navbar />
         </div>
         

@@ -40,6 +40,11 @@ const links = [
     to: '/schedule',
     icon: CalendarCheck,
   },
+    {
+    label: 'Mentor',
+    to: '/mentor',
+    icon: UserCheck,
+  },
   {
     label: 'Profile',
     to: '/profile',

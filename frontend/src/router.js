@@ -24,6 +24,11 @@ const routes = [
     name: 'Attendance',
     component: () => import('@/pages/Attendance.vue'),
   },
+    {
+    path: '/mentor',
+    name: 'Mentor',
+    component: () => import('@/pages/Mentor.vue'),
+  },
   {
     path: '/profile',
     name: 'Profile',
