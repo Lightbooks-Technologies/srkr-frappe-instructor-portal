@@ -24,7 +24,8 @@ import {
   UserCheck,
   BookOpen,
   LucideHome,
-  User2, // Renamed from HomeIcon to LucideHome for consistency
+  User2,
+  PieChart, // Renamed from HomeIcon to LucideHome for consistency
 } from 'lucide-vue-next';
 
 // Define the navigation links directly in the component
@@ -40,10 +41,15 @@ const links = [
     to: '/schedule',
     icon: CalendarCheck,
   },
-    {
+  {
     label: 'Mentor',
     to: '/mentor',
     icon: UserCheck,
+  },
+  {
+    label: 'Analytics',
+    to: '/analytics', // analytics icon below
+    icon: PieChart,
   },
   {
     label: 'Profile',
