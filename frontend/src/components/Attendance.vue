@@ -96,7 +96,7 @@
           
           <div class="student-details">
             <span class="student-name">{{ student.student_name }}</span>
-            <span class="roll-number">{{ student.student }}</span>
+            <span class="roll-number">{{ student.custom_student_id || student.student || 'N/A' }}</span> 
           </div>
         </div>
         
