@@ -24,10 +24,15 @@ const routes = [
     name: 'Attendance',
     component: () => import('@/pages/Attendance.vue'),
   },
-    {
+  {
     path: '/mentor',
     name: 'Mentor',
     component: () => import('@/pages/Mentor.vue'),
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    component: () => import('@/pages/Analytics.vue'),
   },
   {
     path: '/profile',

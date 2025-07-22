@@ -55,9 +55,6 @@
           :disabled="allStudentsHaveStatus || studentsWithoutStatus.length === 0">
           Mark all as absent
         </button>
-        <!-- <button @click="resetAttendance" class="action-button reset">
-          Reset
-        </button> -->
       </div>
     </div>
 
@@ -98,6 +95,13 @@
             <span class="student-name">{{ student.student_name }}</span>
             <span class="roll-number">{{ student.custom_student_id || student.student || 'N/A' }}</span> 
           </div>
+        </div>
+        
+        <!-- Student Percentage Display -->
+        <div class="student-percentage" 
+             v-if="student.attendance_percentage !== undefined"
+             :class="getPercentageClass(student.attendance_percentage)">
+          {{ student.attendance_percentage.toFixed(1) }}%
         </div>
         
         <div v-if="student.checked === false && !isStudentDisabled(student)" class="absent-badge">
@@ -285,6 +289,13 @@ const isStudentDisabled = (student) => {
   return !!student.status
 }
 
+// Helper function to get percentage color class
+const getPercentageClass = (percentage) => {
+  if (percentage >= 85) return 'percentage-good'
+  if (percentage >= 75) return 'percentage-average'
+  return 'percentage-poor'
+}
+
 // Methods
 const toggleStudentAttendance = (student) => {
   if (!isStudentDisabled(student)) {
@@ -379,17 +390,7 @@ const confirmSubmit = async () => {
     
     // Add other required fields
     formData.append('student_group', props.courseInfo.studentGroup || '')
-    // formData.append('course_schedule', props.courseInfo.scheduleId)
     formData.append('course_schedule', props.courseInfo.allScheduleId || props.courseInfo.scheduleId)
-    // console.log('Submitting attendance:', props);
-    // console.log('Submitting attendance:', props.courseInfo);
-    // console.log('Submitting attendance:', {
-    //   students_present: studentsPresent.length,
-    //   students_absent: studentsAbsent.length,
-    //   students_excluded: students.value.filter(s => s.status).length,
-    //   course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
-    //   student_group: props.courseInfo.studentGroup
-    // })
     
     // Call the API
     const response = await fetch('/api/method/srkr_frappe_app_api.instructor.api.mark_attendances', {
@@ -588,36 +589,8 @@ onMounted(() => {
   color: #92400e;
 }
 
-.session-info {
-  padding: 1rem;
-  margin: 0 1rem;
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.session-title {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #374151;
-  margin: 0 0 0.25rem 0;
-}
-
-.session-time {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
 .actions-section {
   padding: 1rem;
-}
-
-.instructions {
-  color: #6b7280;
-  margin: 0 0 1rem 0;
-  font-size: 0.9rem;
 }
 
 .bulk-actions {
@@ -659,15 +632,6 @@ onMounted(() => {
 
 .mark-absent:hover:not(:disabled) {
   background: #dc2626;
-}
-
-.reset {
-  background: #f59e0b;
-  color: white;
-}
-
-.reset:hover {
-  background: #d97706;
 }
 
 .students-list {
@@ -717,37 +681,6 @@ onMounted(() => {
 .student-row.status-absent {
   background: #fef2f2;
   border-left: 4px solid #ef4444;
-}
-
-.status-indicator {
-  color: #059669;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: #d1fae5;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  margin-top: 0.25rem;
-  display: inline-block;
-}
-
-.status-badge {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-}
-
-.status-badge.present {
-  background: #10b981;
-}
-
-.status-badge.absent {
-  background: #ef4444;
 }
 
 .student-info {
@@ -812,6 +745,30 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
+/* Student Percentage Display with Color Coding */
+.student-percentage {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  margin-right: 0.5rem;
+}
+
+.percentage-good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.percentage-average {
+  background: #fed7aa;
+  color: #c2410c;
+}
+
+.percentage-poor {
+  background: #fecaca;
+  color: #dc2626;
+}
+
 .absent-badge {
   background: #ef4444;
   color: white;
@@ -819,6 +776,26 @@ onMounted(() => {
   border-radius: 0.25rem;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.status-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+.status-badge.present {
+  background: #10b981;
+}
+
+.status-badge.absent {
+  background: #ef4444;
 }
 
 .submit-section {
@@ -970,7 +947,14 @@ onMounted(() => {
 
 .submission-section,
 .already-submitted-section,
-.total-section {
+.total-section .section-title {
+  color: #475569;
+}
+
+.modal-body p {
+  margin: 0.25rem 0;
+}
+section {
   margin: 1rem 0;
   padding: 0.75rem;
   border-radius: 0.5rem;
