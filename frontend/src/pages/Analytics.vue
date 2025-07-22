@@ -260,18 +260,24 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
+import {
+	createResource
+} from 'frappe-ui';
+import { studentStore } from '@/stores/student'
 
+const { getStudentInfo } = studentStore()
 // Reactive data
 const selectedBatch = ref('')
 const selectedBatchName = ref('')
 const students = ref([])
+const groups = ref([])
 const loading = ref(false)
 const selectedStudent = ref(null)
 const showModal = ref(false)
 const dropdownOpen = ref(false)
 const filterDropdownOpen = ref(false)
 const currentSort = ref('name')
-
+const instructorInfo = getStudentInfo().value
 // Mock batch data
 const sortOptions = ref([
   { value: 'name', label: 'Name (A-Z)' },
@@ -301,13 +307,6 @@ const sortedStudents = computed(() => {
       return studentsCopy
   }
 })
-const groups = ref([
-  { id: '2025-29-1T1-AIML-A', name: '2025-29 1T1 AIML-A' },
-  { id: '2025-29-1T1-AIML-B', name: '2025-29 1T1 AIML-B' },
-  { id: '2025-29-1T1-CSE-A', name: '2025-29 1T1 CSE-A' },
-  { id: '2025-29-1T1-CSE-B', name: '2025-29 1T1 CSE-B' },
-  { id: '2025-29-1T1-ECE-A', name: '2025-29 1T1 ECE-A' },
-])
 
 // Mock student data
 const mockStudentsData = {
@@ -417,19 +416,31 @@ const mockStudentsData = {
   ]
 }
 
+const studentAnalytics = createResource({
+  url: 'education.education.doctype.student_attendance_tool.student_attendance_tool.get_student_group_attendance_summary',
+  params: {
+    student_group: selectedBatch.value, // Default to first group if none selected
+  },
+  onSuccess: (response) => {
+    console.log('Attendance data fetched successfully:', response)
+    
+    students.value = response || []
+
+    console.log('Students loaded:', students.value.length)
+  },
+  onError: (error) => {
+    console.error('Error fetching attendance data:', error)
+  },
+  auto: false // Don't auto-load, we'll trigger manually
+})
+
 // Methods
 const fetchStudentData = async (batchId) => {
   loading.value = true
   try {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const response = await studentAnalytics.fetch({ student_group: batchId })
     
-    // In real implementation, call:
-    // const response = await fetch(`/api/method/your_app.api.get_batch_analytics?batch=${batchId}`)
-    // const data = await response.json()
-    
-    const data = mockStudentsData[batchId] || []
-    students.value = data
+    students.value = response
   } catch (error) {
     console.error('Error fetching student data:', error)
     students.value = []
@@ -494,8 +505,29 @@ const closeModal = () => {
   selectedStudent.value = null
 }
 
+const fetchGroupData = createResource({
+  url: '/api/method/education.education.doctype.student_attendance_tool.student_attendance_tool.get_instructor_student_groups',
+  params: {
+    instructor: instructorInfo.instructor_record_id,           // "Course Schedule" (hardcoded)
+  },
+  onSuccess: (response) => {
+    console.log('Attendance data fetched successfully:', response)
+    groups.value = response?.map(group => ({
+      id: group,
+      name: group // Assuming group name is same as id, adjust if needed
+    }))
+
+    console.log('Groups loaded:', groups.value.length)
+  },
+  onError: (error) => {
+    console.error('Error fetching attendance data:', error)
+  },
+  auto: false // Don't auto-load, we'll trigger manually
+})
+
 onMounted(() => {
   console.log('Student Analytics component mounted')
+  fetchGroupData.fetch();
 })
 </script>
 
