@@ -55,9 +55,6 @@
           :disabled="allStudentsHaveStatus || studentsWithoutStatus.length === 0">
           Mark all as absent
         </button>
-        <!-- <button @click="resetAttendance" class="action-button reset">
-          Reset
-        </button> -->
       </div>
     </div>
 
@@ -96,8 +93,15 @@
           
           <div class="student-details">
             <span class="student-name">{{ student.student_name }}</span>
-            <span class="roll-number">{{ student.student }}</span>
+            <span class="roll-number">{{ student.custom_student_id || student.student || 'N/A' }}</span> 
           </div>
+        </div>
+        
+        <!-- Student Percentage Display -->
+        <div class="student-percentage" 
+             v-if="student.attendance_percentage !== undefined"
+             :class="getPercentageClass(student.attendance_percentage)">
+          {{ student.attendance_percentage.toFixed(1) }}%
         </div>
         
         <div v-if="student.checked === false && !isStudentDisabled(student)" class="absent-badge">
@@ -205,6 +209,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
+import { createResource } from 'frappe-ui'
 
 // Props from parent component
 const props = defineProps({
@@ -285,6 +290,13 @@ const isStudentDisabled = (student) => {
   return !!student.status
 }
 
+// Helper function to get percentage color class
+const getPercentageClass = (percentage) => {
+  if (percentage >= 85) return 'percentage-good'
+  if (percentage >= 75) return 'percentage-average'
+  return 'percentage-poor'
+}
+
 // Methods
 const toggleStudentAttendance = (student) => {
   if (!isStudentDisabled(student)) {
@@ -344,71 +356,68 @@ const closeErrorModal = () => {
   showErrorModal.value = false
 }
 
-const confirmSubmit = async () => {
-  showConfirmModal.value = false
-  isSubmitting.value = true
-  
-  try {
-    // Filter out students who already have status (exclude from submission)
-    const editableStudents = students.value.filter(s => !s.status)
+const submitAttendanceResource = createResource({
+  url: 'srkr_frappe_app_api.instructor.api.mark_attendances',
+  method: 'POST',
+  onSuccess: (result) => {
+    console.log('API response received:', result)
+    console.log('Resource data:', submitAttendanceResource.data)
     
-    // Prepare data for submission - only include students without existing status
-    const studentsPresent = editableStudents.filter(s => s.checked === true)
-    const studentsAbsent = editableStudents.filter(s => s.checked === false)
+    // Use the resource data if result is undefined
+    const responseData = result || submitAttendanceResource.data
+    console.log('Using response data:', responseData)
     
-    // Prepare form data in the required format
-    const formData = new FormData()
-    
-    // Add students_present as JSON string
-    formData.append('students_present', JSON.stringify(studentsPresent.map(student => ({
-      student: student.student,
-      student_name: student.student_name,
-      group_roll_number: student.group_roll_number,
-      disabled: false,
-      checked: true
-    }))))
-    
-    // Add students_absent as JSON string  
-    formData.append('students_absent', JSON.stringify(studentsAbsent.map(student => ({
-      student: student.student,
-      student_name: student.student_name,
-      group_roll_number: student.group_roll_number,
-      disabled: false,
-      checked: false
-    }))))
-    
-    // Add other required fields
-    formData.append('student_group', props.courseInfo.studentGroup || '')
-    formData.append('course_schedule', props.courseInfo.scheduleId)
-    
-    console.log('Submitting attendance:', {
-      students_present: studentsPresent.length,
-      students_absent: studentsAbsent.length,
-      students_excluded: students.value.filter(s => s.status).length,
-      course_schedule: props.courseInfo.scheduleId,
-      student_group: props.courseInfo.studentGroup
-    })
-    
-    // Call the API
-    const response = await fetch('/api/method/education.education.api.mark_attendance', {
-      method: 'POST',
-      body: formData
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || 'Failed to submit attendance')
+    // Check if there's an exception in the response (Frappe error handling)
+    if (responseData && (responseData.exception || responseData.exc_type)) {
+      console.error('API returned an exception:', responseData.exception)
+      
+      // Parse server messages for error details
+      if (responseData._server_messages) {
+        try {
+          const serverMessages = JSON.parse(responseData._server_messages)
+          if (serverMessages.length > 0) {
+            const message = JSON.parse(serverMessages[0])
+            console.log('Parsed error message:', message)
+            
+            if (message.title === 'Duplicate Entry' || responseData.exception?.includes('already exists')) {
+              errorTitle.value = 'Duplicate Entry'
+              errorMessage.value = message.message?.replace(/<[^>]*>/g, '') || 'Attendance record already exists for some students in this session.'
+            } else {
+              errorTitle.value = message.title || 'Error'
+              errorMessage.value = message.message?.replace(/<[^>]*>/g, '') || 'An error occurred while submitting attendance.'
+            }
+          }
+        } catch (parseError) {
+          console.warn('Could not parse error server messages:', parseError)
+          errorTitle.value = 'Error'
+          errorMessage.value = responseData.exception || 'An error occurred while submitting attendance.'
+        }
+      } else {
+        errorTitle.value = 'Error'
+        errorMessage.value = responseData.exception || 'An error occurred while submitting attendance.'
+      }
+      
+      showErrorModal.value = true
+      isSubmitting.value = false
+      return
     }
     
-    const result = await response.json()
-    console.log('Attendance submitted successfully:', result)
+    // Success case - no exception present
+    console.log('Attendance submitted successfully')
     
-    // Parse server messages if present
-    if (result._server_messages) {
+    // Parse server messages if present - check both result and responseData
+    const serverMessages = responseData?._server_messages || result?._server_messages
+    if (serverMessages) {
       try {
-        const serverMessages = JSON.parse(result._server_messages)
-        if (serverMessages.length > 0) {
-          const message = JSON.parse(serverMessages[0])
+        // Parse the outer JSON string first
+        const parsedMessages = JSON.parse(serverMessages)
+        console.log('Parsed server messages:', parsedMessages)
+        
+        if (parsedMessages.length > 0) {
+          // Parse the inner JSON string
+          const message = JSON.parse(parsedMessages[0])
+          console.log('Parsed message:', message)
+          
           successTitle.value = message.title || 'Success'
           successMessage.value = message.message || 'Attendance has been marked successfully.'
         } else {
@@ -417,6 +426,7 @@ const confirmSubmit = async () => {
         }
       } catch (parseError) {
         console.warn('Could not parse server messages:', parseError)
+        console.warn('Raw _server_messages:', serverMessages)
         successTitle.value = 'Success'
         successMessage.value = 'Attendance has been marked successfully.'
       }
@@ -430,11 +440,13 @@ const confirmSubmit = async () => {
     
     // Show success modal
     showSuccessModal.value = true
+    isSubmitting.value = false
+  },
+  onError: (error) => {
+    console.error('Network/Resource error submitting attendance:', error)
+    console.error('Error details:', error)
     
-  } catch (error) {
-    console.error('Error submitting attendance:', error)
-    
-    if (error.message.includes('Duplicate') || error.message.includes('already exists')) {
+    if (error.message?.includes('Duplicate') || error.message?.includes('already exists')) {
       errorTitle.value = 'Duplicate Entry'
       errorMessage.value = 'Attendance record already exists for some students in this session.'
     } else {
@@ -443,9 +455,46 @@ const confirmSubmit = async () => {
     }
     
     showErrorModal.value = true
-  } finally {
     isSubmitting.value = false
   }
+})
+
+// Update your confirmSubmit method
+const confirmSubmit = () => {
+  showConfirmModal.value = false
+  isSubmitting.value = true
+  
+  // Filter out students who already have status (exclude from submission)
+  const editableStudents = students.value.filter(s => !s.status)
+  
+  // Prepare data for submission - only include students without existing status
+  const studentsPresent = editableStudents.filter(s => s.checked === true)
+  const studentsAbsent = editableStudents.filter(s => s.checked === false)
+  
+  // Prepare the data in the required format
+  const requestData = {
+    students_present: JSON.stringify(studentsPresent.map(student => ({
+      student: student.student,
+      student_name: student.student_name,
+      group_roll_number: student.group_roll_number,
+      disabled: false,
+      checked: true
+    }))),
+    students_absent: JSON.stringify(studentsAbsent.map(student => ({
+      student: student.student,
+      student_name: student.student_name,
+      group_roll_number: student.group_roll_number,
+      disabled: false,
+      checked: false
+    }))),
+    student_group: props.courseInfo.studentGroup || '',
+    course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId
+  }
+  
+  console.log('Submitting attendance with data:', requestData)
+  
+  // Submit using the resource
+  submitAttendanceResource.submit(requestData)
 }
 
 // Optional: Auto-save functionality
@@ -586,36 +635,8 @@ onMounted(() => {
   color: #92400e;
 }
 
-.session-info {
-  padding: 1rem;
-  margin: 0 1rem;
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.session-title {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #374151;
-  margin: 0 0 0.25rem 0;
-}
-
-.session-time {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
 .actions-section {
   padding: 1rem;
-}
-
-.instructions {
-  color: #6b7280;
-  margin: 0 0 1rem 0;
-  font-size: 0.9rem;
 }
 
 .bulk-actions {
@@ -657,15 +678,6 @@ onMounted(() => {
 
 .mark-absent:hover:not(:disabled) {
   background: #dc2626;
-}
-
-.reset {
-  background: #f59e0b;
-  color: white;
-}
-
-.reset:hover {
-  background: #d97706;
 }
 
 .students-list {
@@ -715,37 +727,6 @@ onMounted(() => {
 .student-row.status-absent {
   background: #fef2f2;
   border-left: 4px solid #ef4444;
-}
-
-.status-indicator {
-  color: #059669;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: #d1fae5;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  margin-top: 0.25rem;
-  display: inline-block;
-}
-
-.status-badge {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-}
-
-.status-badge.present {
-  background: #10b981;
-}
-
-.status-badge.absent {
-  background: #ef4444;
 }
 
 .student-info {
@@ -810,6 +791,30 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
+/* Student Percentage Display with Color Coding */
+.student-percentage {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  margin-right: 0.5rem;
+}
+
+.percentage-good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.percentage-average {
+  background: #fed7aa;
+  color: #c2410c;
+}
+
+.percentage-poor {
+  background: #fecaca;
+  color: #dc2626;
+}
+
 .absent-badge {
   background: #ef4444;
   color: white;
@@ -817,6 +822,26 @@ onMounted(() => {
   border-radius: 0.25rem;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.status-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+.status-badge.present {
+  background: #10b981;
+}
+
+.status-badge.absent {
+  background: #ef4444;
 }
 
 .submit-section {
@@ -968,7 +993,14 @@ onMounted(() => {
 
 .submission-section,
 .already-submitted-section,
-.total-section {
+.total-section .section-title {
+  color: #475569;
+}
+
+.modal-body p {
+  margin: 0.25rem 0;
+}
+section {
   margin: 1rem 0;
   padding: 0.75rem;
   border-radius: 0.5rem;

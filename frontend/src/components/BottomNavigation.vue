@@ -1,6 +1,6 @@
 <template>
   <div
-    class="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white shadow-top md:hidden"
+    class="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-gray-200 bg-white shadow-top"
   >
     <router-link
       v-for="link in links"
@@ -24,7 +24,8 @@ import {
   UserCheck,
   BookOpen,
   LucideHome,
-  User2, // Renamed from HomeIcon to LucideHome for consistency
+  User2,
+  PieChart, // Renamed from HomeIcon to LucideHome for consistency
 } from 'lucide-vue-next';
 
 // Define the navigation links directly in the component
@@ -39,6 +40,16 @@ const links = [
     label: 'Schedule',
     to: '/schedule',
     icon: CalendarCheck,
+  },
+  {
+    label: 'Mentor',
+    to: '/mentor',
+    icon: UserCheck,
+  },
+  {
+    label: 'Analytics',
+    to: '/analytics', // analytics icon below
+    icon: PieChart,
   },
   {
     label: 'Profile',

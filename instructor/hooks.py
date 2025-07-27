@@ -30,7 +30,11 @@ website_route_rules = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/instructor/css/instructor.css"
-# app_include_js = "/assets/instructor/js/instructor.js"
+app_include_js = [
+    "assets/instructor/js/custom_list_overrides.js",
+    "assets/instructor/js/toolbar_override.js",
+    "assets/instructor/js/iframe_form_enhancements.js",
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/instructor/css/instructor.css"

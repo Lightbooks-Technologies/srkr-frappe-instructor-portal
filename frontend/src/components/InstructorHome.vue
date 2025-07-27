@@ -2,47 +2,321 @@
   <div class="home-page">
     <!-- Welcome Card -->
     <div class="welcome-card">
-      <h1 class="welcome-name">Hi {{props.events?.instructor?.employee_name || ''}},</h1>
-      <p class="welcome-date">{{ getGreeting() }}, {{ getCurrentDay() }} {{ getCurrentDate() }}</p>
-      
-      <router-link to="/schedule" class="schedule-link">
-        <div class="schedule-text">View Schedule</div>
-        <FeatherIcon name="chevron-right" class="w-5 h-5 text-white" />
-      </router-link>
+      <div class="welcome-content">
+        <h1 class="welcome-name">Hello, {{props.events?.instructor?.employee_name || 'Instructor Example'}}!</h1>
+        <p class="welcome-date">{{ getGreeting() }}, {{ getCurrentDay() }} {{ getCurrentDate() }}</p>
+        
+        <router-link to="/schedule" class="schedule-btn">
+          <span>View Full Schedule</span>
+          <FeatherIcon name="arrow-right" class="w-5 h-5 ml-2" />
+        </router-link>
+      </div>
+      <div class="welcome-bg-elements">
+        <div class="bg-circle-1"></div>
+        <div class="bg-circle-2"></div>
+      </div>
     </div>
 
     <!-- Today's Classes Section -->
     <div class="classes-section">
-      <div v-if="!todaysClasses || todaysClasses.length === 0" class="no-classes-card">
-        <div class="calendar-icon">
-          <FeatherIcon name="calendar" class="w-8 h-8 text-gray-400" />
+      <div class="section-header">
+        <h3 class="section-title">{{ getDateTitle() }}</h3>
+        <div class="navigation-controls">
+          <!-- Reset to Today Button (only show if not viewing today) -->
+          <button 
+            v-if="!isToday" 
+            @click="resetToToday" 
+            class="reset-btn"
+            title="Go to Today"
+          >
+            <FeatherIcon name="calendar" class="w-4 h-4" />
+          </button>
+          
+          <!-- Previous Day Button -->
+          <button @click="goToPreviousDay" class="nav-btn">
+            <FeatherIcon name="chevron-left" class="w-4 h-4" />
+          </button>
+          
+          <!-- Next Day Button -->
+          <button @click="goToNextDay" class="nav-btn">
+            <FeatherIcon name="chevron-right" class="w-4 h-4" />
+          </button>
         </div>
-        <h3 class="no-classes-title">No Classes Today</h3>
-        <p class="no-classes-subtitle">Enjoy your free day!</p>
+      </div>
+
+      <div v-if="loading" class="loading-card">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">Loading classes...</p>
+        </div>
+      </div>
+
+      <div v-else-if="!currentClasses || currentClasses.length === 0" class="no-classes-card">
+        <div class="no-classes-content">
+          <FeatherIcon name="calendar" class="w-12 h-12 text-gray-400 mb-4" />
+          <h4 class="no-classes-title">No Classes {{ isToday ? 'Today' : 'on this day' }}</h4>
+          <p class="no-classes-subtitle">{{ isToday ? 'Enjoy your free day!' : 'Try another date' }}</p>
+        </div>
       </div>
       
-      <div v-else class="classes-card">
-        <h3 class="classes-title">Today's Classes</h3>
-        <div class="classes-list">
-          <div v-for="(classItem, index) in todaysClasses" :key="classItem.id || index" 
-               class="class-item"
-               @click="navigateToAttendance(classItem)">
-            <div class="class-info">
-              <div class="class-name">{{ classItem.name }}</div>
-              <div class="class-time">{{ classItem.time }}</div>
-              <div class="class-room">{{ classItem.room }}</div>
-            </div>
-            <div class="class-status-container">
-              <div class="class-status" :class="getClassStatus(classItem.startTime, classItem.endTime)">
-                {{ getStatusText(classItem.startTime, classItem.endTime) }}
+      <!-- For today's view, show Ongoing, Next Class and All Classes sections -->
+      <div v-else-if="isToday" class="today-layout">
+        <!-- Ongoing Class Section -->
+        <div v-if="ongoingClass" class="ongoing-class-section">
+          <h4 class="subsection-title">
+            <FeatherIcon name="play-circle" class="w-4 h-4 mr-2" />
+            Class in Progress
+          </h4>
+          <div class="ongoing-class-card">
+            <div 
+              class="class-card ongoing-class-highlight"
+              :data-clickable="true"
+              :data-status="'ongoing'"
+              @click="handleClassClick(ongoingClass)">
+              <div class="class-main-content">
+                <div class="class-info">
+                  <h4 class="class-name">{{ ongoingClass.name }}</h4>
+                  <p class="class-time">{{ ongoingClass.time }}</p>
+                  <p class="class-room">{{ ongoingClass.room }}</p>
+                </div>
+                <div class="class-status-badge status-ongoing">
+                  {{ getStatusText(ongoingClass.startTime, ongoingClass.endTime) }}
+                </div>
+              </div>
+              
+              <!-- Take Attendance Button for Ongoing Class -->
+              <div class="attendance-status-bar">
+                <div class="take-attendance">
+                  <div class="take-attendance-icon">
+                    <FeatherIcon name="users" class="w-4 h-4" />
+                  </div>
+                  <span class="take-attendance-text">Take Attendance</span>
+                  <div class="take-attendance-arrow">
+                    <FeatherIcon name="chevron-right" class="w-4 h-4" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <router-link to="/schedule" class="view-all-btn">
-          <span>View All</span>
-          <FeatherIcon name="arrow-right" class="w-4 h-4" />
-        </router-link>
+
+        <!-- Next Class Section -->
+        <div v-if="nextClass" class="next-class-section">
+          <h4 class="subsection-title">
+            <FeatherIcon name="clock" class="w-4 h-4 mr-2" />
+            Next Class
+          </h4>
+          <div class="next-class-card">
+            <div 
+              class="class-card next-class-highlight"
+              :data-clickable="getClassStatus(nextClass.startTime, nextClass.endTime) !== 'upcoming'"
+              :data-status="getClassStatus(nextClass.startTime, nextClass.endTime)"
+              @click="handleClassClick(nextClass)">
+              <div class="class-main-content">
+                <div class="class-info">
+                  <h4 class="class-name">{{ nextClass.name }}</h4>
+                  <p class="class-time">{{ nextClass.time }}</p>
+                  <p class="class-room">{{ nextClass.room }}</p>
+                </div>
+                <div class="class-status-badge" :class="getStatusClass(nextClass.startTime, nextClass.endTime)">
+                  {{ getStatusText(nextClass.startTime, nextClass.endTime) }}
+                </div>
+              </div>
+              
+              <!-- Attendance Status Bar - For completed classes only -->
+              <div v-if="shouldShowAttendanceSection(nextClass)" class="attendance-status-bar">
+                <!-- Incomplete Attendance for Completed Classes -->
+                <div v-if="!hasAttendanceData(nextClass)" class="attendance-incomplete">
+                  <div class="incomplete-icon">
+                    <FeatherIcon name="alert-circle" class="w-4 h-4" />
+                  </div>
+                  <span class="incomplete-text">Attendance Incomplete</span>
+                  <div class="incomplete-arrow">
+                    <FeatherIcon name="chevron-right" class="w-4 h-4" />
+                  </div>
+                </div>
+                
+                <!-- Complete Attendance Display -->
+                <div v-else class="attendance-complete">
+                  <div class="attendance-header">
+                    <div class="attendance-icon">
+                      <FeatherIcon name="check-circle" class="w-4 h-4" />
+                    </div>
+                    <div class="attendance-summary">
+                      <span class="summary-text">{{ nextClass.attendance_summary.present_count }}/{{ nextClass.attendance_summary.total_students }} Present</span>
+                      <span class="percentage-badge" :class="getPercentageBadgeClass(nextClass)">{{ getAttendancePercentage(nextClass) }}%</span>
+                    </div>
+                  </div>
+                  <div class="attendance-visual">
+                    <div class="attendance-bar">
+                      <div class="bar-fill" :class="getProgressBarClass(nextClass)" :style="{ width: getAttendancePercentage(nextClass) + '%' }"></div>
+                    </div>
+                    <div class="attendance-details">
+                      <div class="detail-item present">
+                        <div class="detail-dot present-dot"></div>
+                        <span>{{ nextClass.attendance_summary.present_count }} Present</span>
+                      </div>
+                      <div class="detail-item absent">
+                        <div class="detail-dot absent-dot"></div>
+                        <span>{{ nextClass.attendance_summary.absent_count }} Absent</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- All Classes Section -->
+        <div class="all-classes-section">
+          <h4 class="subsection-title">
+            <FeatherIcon name="list" class="w-4 h-4 mr-2" />
+            All Classes
+          </h4>
+          <div class="classes-list">
+            <div v-for="(classItem, index) in currentClasses" :key="classItem.id || index" 
+                 class="class-card"
+                 :class="{ 'ongoing-highlight': getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing' }"
+                 :data-clickable="getClassStatus(classItem.startTime, classItem.endTime) !== 'upcoming'"
+                 :data-status="getClassStatus(classItem.startTime, classItem.endTime)"
+                 @click="handleClassClick(classItem)">
+              <div class="class-main-content">
+                <div class="class-info">
+                  <h4 class="class-name">{{ classItem.name }}</h4>
+                  <p class="class-time">{{ classItem.time }}</p>
+                  <p class="class-room">{{ classItem.room }}</p>
+                </div>
+                <div class="class-status-badge" :class="getStatusClass(classItem.startTime, classItem.endTime)">
+                  {{ getStatusText(classItem.startTime, classItem.endTime) }}
+                </div>
+              </div>
+              
+              <!-- Attendance Status Bar - For completed, ongoing, and incomplete attendance -->
+              <div v-if="shouldShowAttendanceSection(classItem)" class="attendance-status-bar">
+                <!-- Take Attendance Button for Ongoing Classes -->
+                <div v-if="getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing'" class="take-attendance">
+                  <div class="take-attendance-icon">
+                    <FeatherIcon name="users" class="w-4 h-4" />
+                  </div>
+                  <span class="take-attendance-text">Take Attendance</span>
+                  <div class="take-attendance-arrow">
+                    <FeatherIcon name="chevron-right" class="w-4 h-4" />
+                  </div>
+                </div>
+                
+                <!-- Incomplete Attendance for Completed Classes -->
+                <div v-else-if="!hasAttendanceData(classItem)" class="attendance-incomplete">
+                  <div class="incomplete-icon">
+                    <FeatherIcon name="alert-circle" class="w-4 h-4" />
+                  </div>
+                  <span class="incomplete-text">Attendance Incomplete</span>
+                  <div class="incomplete-arrow">
+                    <FeatherIcon name="chevron-right" class="w-4 h-4" />
+                  </div>
+                </div>
+                
+                <!-- Complete Attendance Display -->
+                <div v-else class="attendance-complete">
+                  <div class="attendance-header">
+                    <div class="attendance-icon">
+                      <FeatherIcon name="check-circle" class="w-4 h-4" />
+                    </div>
+                    <div class="attendance-summary">
+                      <span class="summary-text">{{ classItem.attendance_summary.present_count }}/{{ classItem.attendance_summary.total_students }} Present</span>
+                      <span class="percentage-badge" :class="getPercentageBadgeClass(classItem)">{{ getAttendancePercentage(classItem) }}%</span>
+                    </div>
+                  </div>
+                  <div class="attendance-visual">
+                    <div class="attendance-bar">
+                      <div class="bar-fill" :class="getProgressBarClass(classItem)" :style="{ width: getAttendancePercentage(classItem) + '%' }"></div>
+                    </div>
+                    <div class="attendance-details">
+                      <div class="detail-item present">
+                        <div class="detail-dot present-dot"></div>
+                        <span>{{ classItem.attendance_summary.present_count }} Present</span>
+                      </div>
+                      <div class="detail-item absent">
+                        <div class="detail-dot absent-dot"></div>
+                        <span>{{ classItem.attendance_summary.absent_count }} Absent</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- For other dates, show single classes list -->
+      <div v-else class="classes-list">
+        <div v-for="(classItem, index) in currentClasses" :key="classItem.id || index" 
+             class="class-card"
+             :class="{ 'ongoing-highlight': getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing' }"
+             :data-clickable="getClassStatus(classItem.startTime, classItem.endTime) !== 'upcoming'"
+             :data-status="getClassStatus(classItem.startTime, classItem.endTime)"
+             @click="handleClassClick(classItem)">
+          <div class="class-main-content">
+            <div class="class-info">
+              <h4 class="class-name">{{ classItem.name }}</h4>
+              <p class="class-time">{{ classItem.time }}</p>
+              <p class="class-room">{{ classItem.room }}</p>
+            </div>
+            <div class="class-status-badge" :class="getStatusClass(classItem.startTime, classItem.endTime)">
+              {{ getStatusText(classItem.startTime, classItem.endTime) }}
+            </div>
+          </div>
+          
+          <!-- Attendance Status Bar - For completed, ongoing, and incomplete attendance -->
+          <div v-if="shouldShowAttendanceSection(classItem)" class="attendance-status-bar">
+            <!-- Take Attendance Button for Ongoing Classes -->
+            <div v-if="getClassStatus(classItem.startTime, classItem.endTime) === 'ongoing'" class="take-attendance">
+              <div class="take-attendance-icon">
+                <FeatherIcon name="users" class="w-4 h-4" />
+              </div>
+              <span class="take-attendance-text">Take Attendance</span>
+              <div class="take-attendance-accent"></div>
+            </div>
+            
+            <!-- Incomplete Attendance for Completed Classes -->
+            <div v-else-if="!hasAttendanceData(classItem)" class="attendance-incomplete">
+              <div class="incomplete-icon">
+                <FeatherIcon name="alert-circle" class="w-4 h-4" />
+              </div>
+              <span class="incomplete-text">Attendance Incomplete</span>
+              <div class="incomplete-accent"></div>
+            </div>
+            
+            <!-- Complete Attendance Display -->
+            <div v-else class="attendance-complete">
+              <div class="attendance-header">
+                <div class="attendance-icon">
+                  <FeatherIcon name="check-circle" class="w-4 h-4" />
+                </div>
+                <div class="attendance-summary">
+                  <span class="summary-text">{{ classItem.attendance_summary.present_count }}/{{ classItem.attendance_summary.total_students }} Present</span>
+                  <span class="percentage-badge" :class="getPercentageBadgeClass(classItem)">{{ getAttendancePercentage(classItem) }}%</span>
+                </div>
+              </div>
+              <div class="attendance-visual">
+                <div class="attendance-bar">
+                  <div class="bar-fill" :class="getProgressBarClass(classItem)" :style="{ width: getAttendancePercentage(classItem) + '%' }"></div>
+                </div>
+                <div class="attendance-details">
+                  <div class="detail-item present">
+                    <div class="detail-dot present-dot"></div>
+                    <span>{{ classItem.attendance_summary.present_count }} Present</span>
+                  </div>
+                  <div class="detail-item absent">
+                    <div class="detail-dot absent-dot"></div>
+                    <span>{{ classItem.attendance_summary.absent_count }} Absent</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -50,7 +324,7 @@
 
 <script setup>
 import { FeatherIcon } from 'frappe-ui'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -62,27 +336,156 @@ const props = defineProps({
   }
 })
 
-// Get today's classes from props
-const todaysClasses = computed(() => {
-  return props.events?.todaysClasses || []
+// Emit events to parent component
+const emit = defineEmits(['dateChanged', 'resetToToday'])
+
+// Current selected date
+const currentDate = ref(new Date())
+const loading = ref(false)
+
+// Watch for changes in the props.events.todaysClasses to reset loading
+watch(
+  () => props.events?.todaysClasses,
+  (newClasses) => {
+    console.log('Classes data changed:', newClasses)
+    if (newClasses !== undefined) {
+      loading.value = false
+    }
+  },
+  { deep: true }
+)
+
+// Computed properties
+const isToday = computed(() => {
+  const today = new Date()
+  return currentDate.value.toDateString() === today.toDateString()
 })
+
+const currentClasses = computed(() => {
+  console.log('currentClasses computed called')
+  console.log('props.events?.todaysClasses:', props.events?.todaysClasses)
+  console.log('isToday.value:', isToday.value)
+  console.log('currentDate.value:', currentDate.value)
+  
+  if (!props.events?.todaysClasses) {
+    console.log('No todaysClasses data available')
+    return []
+  }
+  
+  // Always return the todaysClasses from props
+  // The parent should update this data when date changes
+  console.log('Returning classes:', props.events.todaysClasses)
+  return props.events.todaysClasses
+})
+
+// Computed property to get the ongoing class (for today's view)
+const ongoingClass = computed(() => {
+  if (!isToday.value || !currentClasses.value || currentClasses.value.length === 0) {
+    return null
+  }
+  
+  // Look for ongoing classes
+  const ongoing = currentClasses.value.find(classItem => {
+    const status = getClassStatus(classItem.startTime, classItem.endTime)
+    return status === 'ongoing'
+  })
+  
+  return ongoing || null
+})
+
+// Computed property to get the next upcoming class (for today's view)
+const nextClass = computed(() => {
+  if (!isToday.value || !currentClasses.value || currentClasses.value.length === 0) {
+    return null
+  }
+  
+  // Find the next upcoming class (exclude ongoing classes)
+  const upcomingClasses = currentClasses.value
+    .filter(classItem => {
+      const status = getClassStatus(classItem.startTime, classItem.endTime)
+      return status === 'upcoming'
+    })
+    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+  
+  return upcomingClasses.length > 0 ? upcomingClasses[0] : null
+})
+
+// Navigation functions
+const goToPreviousDay = async () => {
+  const newDate = new Date(currentDate.value)
+  newDate.setDate(newDate.getDate() - 1)
+  currentDate.value = newDate
+  
+  await fetchClassesForDate(newDate)
+}
+
+const goToNextDay = async () => {
+  const newDate = new Date(currentDate.value)
+  newDate.setDate(newDate.getDate() + 1)
+  currentDate.value = newDate
+  
+  await fetchClassesForDate(newDate)
+}
+
+const resetToToday = async () => {
+  currentDate.value = new Date()
+  emit('resetToToday')
+}
+
+const fetchClassesForDate = async (date) => {
+  loading.value = true
+  
+  try {
+    // Emit event to parent to fetch data for specific date
+    emit('dateChanged', {
+      date: date.toLocaleDateString('en-CA'), // YYYY-MM-DD format
+      dateObj: date
+    })
+  } catch (error) {
+    console.error('Error fetching classes for date:', error)
+    loading.value = false
+  }
+  // Note: loading.value will be set to false by the watcher when new data arrives
+}
+
+// Get title based on current date
+const getDateTitle = () => {
+  if (isToday.value) {
+    return "Today's Classes"
+  }
+  
+  const options = { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric' 
+  }
+  
+  return currentDate.value.toLocaleDateString('en-US', options) + " Classes"
+}
+
+// Handle class card click with conditional navigation
+const handleClassClick = (classItem) => {
+  const status = getClassStatus(classItem.startTime, classItem.endTime)
+  
+  // Only allow navigation for completed classes and ongoing classes
+  if (status === 'completed' || status === 'ongoing') {
+    navigateToAttendance(classItem)
+  }
+  // Do nothing for upcoming classes (no navigation)
+}
 
 // Navigate to attendance page with class data
 const navigateToAttendance = (classItem) => {
-  console.log('Navigating to attendance for class:', classItem)
-  console.log('Navigating to attendance for class:', classItem.id)
-  console.log('Navigating to attendance for class:', classItem.studentGroup)
   router.push({
-    name: 'Attendance', // or path: '/attendance'
-    params: {
-      courseScheduleId: classItem.id,
-      studentGroup: classItem.studentGroup
-    },
+    path: '/attendance',
     query: {
       basedOn: 'Course Schedule',
       courseName: classItem.name,
       courseTime: classItem.time,
-      courseRoom: classItem.room
+      courseRoom: classItem.room,
+      courseScheduleId: classItem.id,
+      studentGroup: classItem.studentGroup,
+      allCourseScheduleId: classItem.all_course_schedule_id ? classItem.all_course_schedule_id.join(',') : classItem.id
     }
   })
 }
@@ -90,7 +493,6 @@ const navigateToAttendance = (classItem) => {
 // Get current greeting based on local time
 function getGreeting() {
   const hour = new Date().getHours()
-  console.log('Current Local Hour:', hour)
   if (hour < 12) return 'Good Morning'
   if (hour < 17) return 'Good Afternoon'
   return 'Good Evening'
@@ -112,34 +514,13 @@ function getCurrentDate() {
   return `${day} ${month}`
 }
 
-// Format time to 12-hour format
-function formatTime(timeString) {
-  if (!timeString) return ''
-  
-  const date = new Date(timeString)
-  return date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit', 
-    hour12: true
-  })
-}
-
 // Get class status based on local time
 function getClassStatus(startTimeString, endTimeString) {
   if (!startTimeString || !endTimeString) return 'upcoming'
   
-  // Get current time
   const now = new Date()
-  
-  // Convert class times to Date objects
   const classStartTime = new Date(startTimeString)
   const classEndTime = new Date(endTimeString)
-  
-  console.log('Time comparison (Local):', {
-    current: now.toLocaleString(),
-    classStart: classStartTime.toLocaleString(),
-    classEnd: classEndTime.toLocaleString()
-  })
   
   if (now < classStartTime) return 'upcoming'
   if (now >= classStartTime && now <= classEndTime) return 'ongoing'
@@ -150,127 +531,348 @@ function getClassStatus(startTimeString, endTimeString) {
 function getStatusText(startTimeString, endTimeString) {
   const status = getClassStatus(startTimeString, endTimeString)
   switch (status) {
-    case 'completed': return 'Completed'
-    case 'ongoing': return 'Ongoing'
-    case 'upcoming': return 'Upcoming'
-    default: return 'Upcoming'
+    case 'completed': return 'COMPLETED'
+    case 'ongoing': return 'ONGOING'
+    case 'upcoming': return 'UPCOMING'
+    default: return 'UPCOMING'
   }
 }
 
-// Additional utility functions for local time handling
-const getLocalDateString = () => {
-  return new Date().toLocaleDateString('en-CA')
+// Get status CSS class
+function getStatusClass(startTimeString, endTimeString) {
+  const status = getClassStatus(startTimeString, endTimeString)
+  return `status-${status}`
 }
 
-const formatDateTime = (dateTimeString) => {
-  if (!dateTimeString) return ''
+// Check if attendance section should be shown (completed or ongoing classes)
+function shouldShowAttendanceSection(classItem) {
+  const status = getClassStatus(classItem.startTime, classItem.endTime)
+  return status === 'completed' || status === 'ongoing'
+}
+
+// Check if attendance should be shown (only for completed classes)
+function shouldShowAttendance(classItem) {
+  const status = getClassStatus(classItem.startTime, classItem.endTime)
+  return status === 'completed'
+}
+
+// Check if class has attendance data
+function hasAttendanceData(classItem) {
+  return classItem.attendance_summary && 
+         typeof classItem.attendance_summary.total_students === 'number' &&
+         classItem.attendance_summary.total_students > 0
+}
+
+// Calculate attendance percentage
+function getAttendancePercentage(classItem) {
+  if (!hasAttendanceData(classItem)) return 0
   
-  const date = new Date(dateTimeString)
-  return date.toLocaleString('en-US', { 
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  })
+  const { total_students, present_count } = classItem.attendance_summary
+  return Math.round((present_count / total_students) * 100)
+}
+
+// Get dynamic background class for percentage badge
+function getPercentageBadgeClass(classItem) {
+  const percentage = getAttendancePercentage(classItem)
+  if (percentage >= 80) return 'percentage-badge-green'
+  if (percentage >= 60) return 'percentage-badge-yellow'
+  return 'percentage-badge-red'
+}
+
+// Get dynamic color for progress bar
+function getProgressBarClass(classItem) {
+  const percentage = getAttendancePercentage(classItem)
+  if (percentage >= 80) return 'bar-fill-green'
+  if (percentage >= 60) return 'bar-fill-yellow'
+  return 'bar-fill-red'
 }
 
 // Expose utility functions if needed by parent
 defineExpose({
-  formatTime,
-  getLocalDateString,
-  formatDateTime
+  getClassStatus,
+  getStatusText,
+  shouldShowAttendance,
+  hasAttendanceData,
+  getAttendancePercentage,
+  getPercentageBadgeClass,
+  getProgressBarClass,
+  currentDate,
+  isToday
 })
-
 </script>
 
 <style scoped>
 .home-page {
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 0 0 2rem 0;
+  min-height: 100vh;
+  background-color: #f0fdfa;
+  padding-bottom: 2rem;
 }
 
+/* Welcome Card */
 .welcome-card {
-  background: linear-gradient(135deg, #4c63d2 0%, #6366f1 100%);
-  margin: 1rem 1rem 1.5rem 1rem;
-  padding: 1.5rem;
-  border-radius: 1rem;
-  color: white;
   position: relative;
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  margin: 1.5rem 1rem;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  color: white;
   overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-.welcome-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -10%;
-  width: 100px;
-  height: 100px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  z-index: 1;
+.welcome-content {
+  position: relative;
+  z-index: 10;
 }
 
 .welcome-name {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  position: relative;
-  z-index: 2;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  line-height: 1.2;
 }
 
 .welcome-date {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 1rem;
+  color: rgba(240, 253, 250, 0.9);
+  font-size: 0.875rem;
+  font-weight: 300;
   margin-bottom: 1.5rem;
-  position: relative;
-  z-index: 2;
 }
 
-.schedule-link {
-  display: flex;
+.schedule-btn {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0d9488;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  transform: translateZ(0);
+}
+
+.schedule-btn:hover {
+  background: white;
+  transform: scale(1.05);
+}
+
+.welcome-bg-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.bg-circle-1 {
+  position: absolute;
+  top: -2.5rem;
+  right: -2.5rem;
+  width: 8rem;
+  height: 8rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+.bg-circle-2 {
+  position: absolute;
+  bottom: -3rem;
+  left: -2rem;
+  width: 10rem;
+  height: 10rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+
+/* Classes Section */
+.classes-section {
+  margin: 0 1rem;
+}
+
+/* Today Layout */
+.today-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Ongoing Class Section */
+.ongoing-class-section {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  animation: subtle-pulse 3s ease-in-out infinite;
+}
+
+.ongoing-class-highlight {
+  background: white;
+  box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.3), 0 10px 15px -5px rgba(245, 158, 11, 0.2);
+  border: 2px solid #f59e0b !important;
+}
+
+@keyframes subtle-pulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+  }
+}
+
+/* Next Class Section */
+.next-class-section {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #0ea5e9;
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.next-class-highlight {
+  background: white;
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #0ea5e9;
+}
+
+/* All Classes Section */
+.all-classes-section {
+  /* Default styling */
+}
+
+/* Subsection Titles */
+.subsection-title {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+.ongoing-class-section .subsection-title {
+  color: #d97706;
+}
+
+.next-class-section .subsection-title {
+  color: #0369a1;
+}
+
+.all-classes-section .subsection-title {
+  color: #1f2937;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Navigation Controls */
+.navigation-controls {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 0.75rem;
-  text-decoration: none;
-  color: white;
-  font-weight: 600;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
-  position: relative;
-  z-index: 2;
 }
 
-.schedule-link:hover {
-  background: rgba(255, 255, 255, 0.3);
+.nav-btn, .reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover, .reset-btn:hover {
+  background: #f9fafb;
+  border-color: #0d9488;
+  color: #0d9488;
   transform: translateY(-1px);
 }
 
-.schedule-text {
-  font-size: 1rem;
+.reset-btn {
+  background: #0d9488;
+  color: white;
+  border-color: #0d9488;
+  margin-right: 0.25rem;
 }
 
-.classes-section {
-  margin: 0 1rem 1.5rem 1rem;
+.reset-btn:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: white;
 }
 
-.no-classes-card {
+/* Loading Card */
+.loading-card {
   background: white;
-  border-radius: 1.5rem;
+  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-.calendar-icon {
-  margin-bottom: 1rem;
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #0d9488;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* No Classes Card */
+.no-classes-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.no-classes-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .no-classes-title {
@@ -282,43 +884,48 @@ defineExpose({
 
 .no-classes-subtitle {
   color: #6b7280;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
-.classes-card {
-  background: white;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-
-.classes-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
-
+/* Classes List */
 .classes-list {
-  space-y: 0.75rem;
-}
-
-.class-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem;
-  background: #f8fafc;
-  border-radius: 0.75rem;
-  margin-bottom: 0.75rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.class-item:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.class-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s;
+}
+
+.class-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Only make clickable cards have cursor pointer */
+.class-card[data-clickable="true"] {
+  cursor: pointer;
+}
+
+/* Upcoming classes should have reduced opacity and no pointer */
+.class-card[data-status="upcoming"] {
+  opacity: 0.8;
+  cursor: default;
+}
+
+.ongoing-highlight {
+  border: 2px solid #f59e0b;
+  border-opacity: 0.7;
+}
+
+.class-main-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .class-info {
@@ -326,78 +933,344 @@ defineExpose({
 }
 
 .class-name {
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: #1f2937;
-  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
 }
 
 .class-time {
-  color: #4f46e5;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  margin: 0.25rem 0;
+  color: #0d9488;
+  margin-bottom: 0.125rem;
 }
 
 .class-room {
-  color: #6b7280;
-  font-size: 0.8rem;
-}
-
-.class-status-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
-}
-
-.class-time-range {
-  color: #6b7280;
   font-size: 0.75rem;
-  font-weight: 500;
-  text-align: right;
+  color: #6b7280;
 }
 
-.class-status {
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
+/* Status Badges */
+.class-status-badge {
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: center;
-  min-width: 80px;
+  letter-spacing: 0.025em;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  white-space: nowrap;
 }
 
-.class-status.upcoming {
-  background: #dbeafe;
+.status-completed {
+  background-color: #d1fae5;
+  color: #047857;
+}
+
+.status-ongoing {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.status-upcoming {
+  background-color: #dbeafe;
   color: #1d4ed8;
 }
 
-.class-status.ongoing {
-  background: #d1fae5;
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+/* Attendance Status Bar */
+.attendance-status-bar {
+  margin-top: 0.875rem;
+}
+
+/* Take Attendance Styling for Ongoing Classes */
+.take-attendance {
+  position: relative;
+  background: #fef2e0;
+  border: 1px solid #d97806;
+  border-radius: 0.5rem;
+  padding: 0.35rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow: hidden;
+  animation: glow-orange 2s ease-in-out infinite alternate;
+}
+
+.take-attendance-icon {
+  color: #d97806;
+  z-index: 1;
+  position: relative;
+}
+
+.take-attendance-text {
+  color: #d97706;
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 1;
+  text-transform: uppercase;
+  position: relative;
+  flex: 1;
+}
+
+.take-attendance-arrow {
+  color: #d97706;
+  z-index: 1;
+  position: relative;
+  margin-left: auto;
+}
+
+@keyframes glow-orange {
+  from {
+    box-shadow: 0 0 5px rgba(245, 158, 11, 0.3);
+  }
+  to {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+  }
+}
+
+/* Incomplete Attendance Styling */
+.attendance-incomplete {
+  position: relative;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #f87171;
+  border-radius: 0.5rem;
+  padding: 0.35rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.attendance-incomplete::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(248, 113, 113, 0.1) 3px,
+    rgba(248, 113, 113, 0.1) 6px
+  );
+  pointer-events: none;
+}
+
+.incomplete-icon {
+  color: #dc2626;
+  z-index: 1;
+  position: relative;
+}
+
+.incomplete-text {
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 1;
+  position: relative;
+  flex: 1;
+  text-transform: uppercase;
+}
+
+.incomplete-arrow {
+  color: #dc2626;
+  z-index: 1;
+  position: relative;
+  margin-left: auto;
+}
+
+/* Complete Attendance Styling */
+.attendance-complete {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #0f7e75;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.attendance-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.attendance-icon {
+  color: #0ea5e9;
+}
+
+.attendance-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.summary-text {
+  color: #075985;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.percentage-badge {
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Dynamic Percentage Badge Colors */
+.percentage-badge-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.percentage-badge-yellow {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
+.percentage-badge-red {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+}
+
+.attendance-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.attendance-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(186, 230, 253, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* Dynamic Progress Bar Colors */
+.bar-fill-green {
+  background: linear-gradient(90deg, #10b981 0%, #059669 50%, #047857 100%);
+}
+
+.bar-fill-yellow {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+}
+
+.bar-fill-red {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+}
+
+.bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.attendance-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.detail-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.present-dot {
+  background: #10b981;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+}
+
+.absent-dot {
+  background: #ef4444;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+
+.detail-item.present {
   color: #059669;
 }
 
-.class-status.completed {
-  background: #f3f4f6;
-  color: #6b7280;
+.detail-item.absent {
+  color: #dc2626;
 }
 
-.view-all-btn {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.5rem;
-  color: #4f46e5;
-  font-weight: 500;
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: color 0.2s;
-}
-
-.view-all-btn:hover {
-  color: #3730a3;
+/* Responsive Design */
+@media (min-width: 640px) {
+  .welcome-name {
+    font-size: 1.875rem;
+  }
+  
+  .welcome-date {
+    font-size: 1rem;
+  }
+  
+  .section-title {
+    font-size: 1.5rem;
+  }
+  
+  .class-name {
+    font-size: 1rem;
+  }
+  
+  .class-time {
+    font-size: 0.875rem;
+  }
+  
+  .class-room {
+    font-size: 0.75rem;
+  }
+  
+  .nav-btn, .reset-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
 }
 </style>
