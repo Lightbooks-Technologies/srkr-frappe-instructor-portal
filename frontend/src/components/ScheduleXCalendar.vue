@@ -141,40 +141,47 @@ const addCustomModalStyles = () => {
 
 // Function to customize the modal after it's created
 const customizeEventModal = (eventData) => {
-  setTimeout(() => {
-    const modal = document.querySelector('.sx__event-modal')
-    if (modal) {
-      if (!modal.querySelector('.custom-attendance-btn')) {
-        let content = modal.querySelector('.sx__event-modal__content')
-        if (!content) {
-          content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
-        }
-        
-        if (content) {
-          const attendanceBtn = document.createElement('button')
-          attendanceBtn.className = 'custom-attendance-btn'
-          attendanceBtn.innerHTML = 'Take Attendance'
+  // ignore below login if eventData.attendanceSummary is not empty
+    setTimeout(() => {
+      const modal = document.querySelector('.sx__event-modal')
+      if (modal) {
+        if (!modal.querySelector('.custom-attendance-btn')) {
+          let content = modal.querySelector('.sx__event-modal__content')
+          if (!content) {
+            content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
+          }
           
-          attendanceBtn.addEventListener('click', () => {
-            const fullEventData = events.value.find(event => event.id === eventData.id)
-            if (fullEventData) {
-              navigateToAttendance(fullEventData)
+          if (content) {
+            const attendanceBtn = document.createElement('button')
+            attendanceBtn.className = 'custom-attendance-btn'
+            attendanceBtn.innerHTML = eventData.attendanceSummary && Object.keys(eventData.attendanceSummary).length > 0 ? 'View Attendance' : 'Take Attendance'
+
+            attendanceBtn.addEventListener('click', () => {
+              const fullEventData = events.value.find(event => event.id === eventData.id)
+              if (fullEventData) {
+                navigateToAttendance(fullEventData)
+              }
+              const modalToClose = document.querySelector('.sx__event-modal')
+              if (modalToClose && modalToClose.parentNode) {
+                modalToClose.parentNode.removeChild(modalToClose)
+              }
+            })
+            
+            const spacer = document.createElement('div')
+            spacer.style.marginTop = '16px'
+            // Append one level before the content
+            if (content.parentNode) {
+              content.parentNode.appendChild(spacer)
+              content.parentNode.appendChild(attendanceBtn)
+            } else {
+              content.appendChild(spacer)
+              content.appendChild(attendanceBtn)
             }
-            const modalToClose = document.querySelector('.sx__event-modal')
-            if (modalToClose && modalToClose.parentNode) {
-              modalToClose.parentNode.removeChild(modalToClose)
-            }
-          })
-          
-          const spacer = document.createElement('div')
-          spacer.style.marginTop = '16px'
-          content.appendChild(spacer)
-          content.appendChild(attendanceBtn)
+          }
         }
       }
-    }
-  }, 200)
-}
+    }, 200)
+  }
 
 
 // Function to combine consecutive courses with the same course_id
@@ -299,13 +306,14 @@ const scheduleResource = createResource({
         title: `${classSchedule.course_name}`,
         start: startDateTime,
         end: endDateTime,
-        description: `Room: ${classSchedule.room}\nGroup: ${classSchedule.student_group}`,
-        location: classSchedule.room,
+        description: `Group: ${classSchedule.student_group}`,
+        location: classSchedule.room_name,
         calendarId: calendarId || 'default',
         courseId: classSchedule.course_id,
         studentGroup: classSchedule.student_group,
         scheduleId: classSchedule.course_schedule_id,
         allCourseScheduleId: classSchedule.all_course_schedule_id || [classSchedule.course_schedule_id],
+        attendanceSummary: classSchedule.attendance_summary || {},
       })
     })
     
@@ -463,5 +471,9 @@ defineExpose({
 
 .sx__month-agenda-events {
   margin: 20px 0;
+}
+.sx__event-modal {
+  max-width: 600px; /* Limit modal width */
+  width: 90%; /* Responsive width */
 }
 </style>

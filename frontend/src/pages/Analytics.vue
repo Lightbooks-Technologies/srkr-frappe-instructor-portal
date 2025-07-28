@@ -14,7 +14,7 @@
       <div class="batch-selector-card">
         <div class="selector-header">
           <FeatherIcon name="users" class="w-5 h-5 text-gray-500" />
-          <label for="batch-select" class="selector-label">Select Student Batch</label>
+          <label for="batch-select" class="selector-label">Select Student Group</label>
         </div>
         <div class="selector-wrapper">
           <div 
@@ -23,7 +23,7 @@
             :class="{ 'dropdown-open': dropdownOpen }"
           >
             <span class="selected-text">
-              {{ selectedBatchName || 'Choose a batch...' }}
+              {{ selectedBatchName || 'Choose a student group...' }}
             </span>
             <FeatherIcon name="chevron-down" class="select-icon" :class="{ 'rotated': dropdownOpen }" />
             
@@ -51,35 +51,89 @@
     <!-- Students Grid -->
     <div v-if="!loading && students.length > 0" class="students-section">
       <div class="students-header">
-        <h2 class="students-title">Students ({{ students.length }})</h2>
+        <h2 class="students-title">Students ({{ filteredStudents.length }})</h2>
         <div class="header-actions">
-          <div class="filter-dropdown">
-            <button @click="toggleFilterDropdown" class="filter-button">
-              <FeatherIcon name="filter" class="w-4 h-4" />
-              <span>{{ currentSortLabel }}</span>
-              <FeatherIcon name="chevron-down" class="w-4 h-4" :class="{ 'rotated': filterDropdownOpen }" />
-            </button>
-            <div v-if="filterDropdownOpen" class="filter-menu">
-              <div 
-                v-for="option in sortOptions" 
-                :key="option.value"
-                @click="selectSort(option)"
-                class="filter-item"
-                :class="{ 'active': currentSort === option.value }"
-              >
-                {{ option.label }}
+          <div class="controls-row">
+            <div class="filter-dropdown">
+              <button @click="toggleFilterDropdown" class="filter-button">
+                <FeatherIcon name="filter" class="w-4 h-4" />
+                <span>{{ currentSortLabel }}</span>
+                <FeatherIcon name="chevron-down" class="w-4 h-4" :class="{ 'rotated': filterDropdownOpen }" />
+              </button>
+              <div v-if="filterDropdownOpen" class="filter-menu">
+                <div 
+                  v-for="option in sortOptions" 
+                  :key="option.value"
+                  @click="selectSort(option)"
+                  class="filter-item"
+                  :class="{ 'active': currentSort === option.value }"
+                >
+                  {{ option.label }}
+                </div>
               </div>
             </div>
+            
+            <!-- Search and View Controls -->
+            <div class="action-buttons">
+              <button @click="toggleSearch" class="action-button" :class="{ 'active': showSearch }">
+                <FeatherIcon name="search" class="w-4 h-4" />
+              </button>
+              <button @click="toggleView" class="action-button" :class="{ 'active': viewMode === 'simple' }">
+                <FeatherIcon name="grid" class="w-4 h-4" />
+              </button>
+            </div>
           </div>
+          
+          <!-- Search Box -->
+          <div v-if="showSearch" class="search-container">
+            <div class="search-input-wrapper">
+              <FeatherIcon name="search" class="search-icon" />
+              <input 
+                v-model="searchQuery"
+                type="text" 
+                placeholder="Search students by name or roll number..."
+                class="search-input"
+                @input="handleSearch"
+              />
+              <button v-if="searchQuery" @click="clearSearch" class="clear-search">
+                <FeatherIcon name="x" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
           <p class="students-subtitle">
-            Click on any student card to view detailed course-wise attendance
+            {{ viewMode === 'full' ? 'Click on any student card to view detailed course-wise attendance' : 'Simple view - Click grid icon to toggle to detailed view' }}
           </p>
         </div>
       </div>
       
-      <div class="students-grid">
+      <!-- Simple View -->
+      <div v-if="viewMode === 'simple'" class="students-simple-grid">
         <div
-          v-for="student in sortedStudents"
+          v-for="student in filteredStudents"
+          :key="student.student_id"
+          @click="openStudentModal(student)"
+          class="student-simple-card"
+        >
+          <div class="simple-student-info">
+            <h3 class="simple-student-name">{{ student.student_name }}</h3>
+            <p class="simple-student-roll">{{ student.roll_number }}</p>
+          </div>
+          <div class="simple-attendance">
+            <span 
+              class="simple-percentage" 
+              :class="getAttendanceStatusClass(student.overall_percentage)"
+            >
+              {{ student.overall_percentage.toFixed(1) }}%
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Full View (Current) -->
+      <div v-else class="students-grid">
+        <div
+          v-for="student in filteredStudents"
           :key="student.student_id"
           @click="openStudentModal(student)"
           class="student-card"
@@ -144,10 +198,17 @@
       <p class="empty-text">No students found for the selected batch.</p>
     </div>
 
+    <!-- No Search Results -->
+    <div v-if="!loading && selectedBatch && students.length > 0 && filteredStudents.length === 0" class="empty-state">
+      <FeatherIcon name="search" class="w-12 h-12 text-gray-400" />
+      <p class="empty-text">No students found matching "{{ searchQuery }}"</p>
+      <button @click="clearSearch" class="clear-search-button">Clear search</button>
+    </div>
+
     <!-- Initial State -->
     <div v-if="!loading && !selectedBatch" class="empty-state">
       <FeatherIcon name="trending-up" class="w-12 h-12 text-gray-400" />
-      <p class="empty-text">Select a batch to view student analytics.</p>
+      <p class="empty-text">Select a student group to view analytics.</p>
     </div>
 
     <!-- Student Detail Modal -->
@@ -278,6 +339,12 @@ const dropdownOpen = ref(false)
 const filterDropdownOpen = ref(false)
 const currentSort = ref('name')
 const instructorInfo = getStudentInfo().value
+
+// New reactive data for search and view
+const searchQuery = ref('')
+const showSearch = ref(false)
+const viewMode = ref('full') // 'full' or 'simple'
+
 // Mock batch data
 const sortOptions = ref([
   { value: 'name', label: 'Name (A-Z)' },
@@ -302,119 +369,24 @@ const sortedStudents = computed(() => {
     case 'attendance-low':
       return studentsCopy.sort((a, b) => a.overall_percentage - b.overall_percentage)
     case 'roll':
-      return studentsCopy.sort((a, b) => a.roll_number.localeCompare(b.roll_number))
+      return studentsCopy.sort((a, b) => String(a.roll_number).localeCompare(String(b.roll_number)))
     default:
       return studentsCopy
   }
 })
 
-// Mock student data
-const mockStudentsData = {
-  '2025-29-1T1-AIML-A': [
-    {
-      student_id: 'STU001',
-      student_name: 'Aarav Sharma',
-      roll_number: '22AI001',
-      overall_percentage: 92.5,
-      total_classes: 120,
-      attended_classes: 111,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 95.2, attended: 20, total: 21 },
-        { course_name: 'Data Structures', percentage: 88.9, attended: 16, total: 18 },
-        { course_name: 'Database Systems', percentage: 94.1, attended: 16, total: 17 },
-        { course_name: 'Computer Networks', percentage: 90.0, attended: 18, total: 20 },
-        { course_name: 'Software Engineering', percentage: 92.3, attended: 12, total: 13 },
-        { course_name: 'Operating Systems', percentage: 87.5, attended: 14, total: 16 },
-        { course_name: 'Web Technologies', percentage: 93.3, attended: 14, total: 15 }
-      ]
-    },
-    {
-      student_id: 'STU002',
-      student_name: 'Priya Patel',
-      roll_number: '22AI002',
-      overall_percentage: 87.3,
-      total_classes: 118,
-      attended_classes: 103,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 90.5, attended: 19, total: 21 },
-        { course_name: 'Data Structures', percentage: 83.3, attended: 15, total: 18 },
-        { course_name: 'Database Systems', percentage: 88.2, attended: 15, total: 17 },
-        { course_name: 'Computer Networks', percentage: 85.0, attended: 17, total: 20 },
-        { course_name: 'Software Engineering', percentage: 84.6, attended: 11, total: 13 },
-        { course_name: 'Operating Systems', percentage: 87.5, attended: 14, total: 16 },
-        { course_name: 'Web Technologies', percentage: 86.7, attended: 13, total: 15 }
-      ]
-    },
-    {
-      student_id: 'STU003',
-      student_name: 'Rohit Kumar',
-      roll_number: '22AI003',
-      overall_percentage: 78.9,
-      total_classes: 115,
-      attended_classes: 91,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 81.0, attended: 17, total: 21 },
-        { course_name: 'Data Structures', percentage: 72.2, attended: 13, total: 18 },
-        { course_name: 'Database Systems', percentage: 82.4, attended: 14, total: 17 },
-        { course_name: 'Computer Networks', percentage: 75.0, attended: 15, total: 20 },
-        { course_name: 'Software Engineering', percentage: 76.9, attended: 10, total: 13 },
-        { course_name: 'Operating Systems', percentage: 81.3, attended: 13, total: 16 },
-        { course_name: 'Web Technologies', percentage: 80.0, attended: 12, total: 15 }
-      ]
-    },
-    {
-      student_id: 'STU004',
-      student_name: 'Sneha Reddy',
-      roll_number: '22AI004',
-      overall_percentage: 94.7,
-      total_classes: 122,
-      attended_classes: 115,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 95.2, attended: 20, total: 21 },
-        { course_name: 'Data Structures', percentage: 94.4, attended: 17, total: 18 },
-        { course_name: 'Database Systems', percentage: 94.1, attended: 16, total: 17 },
-        { course_name: 'Computer Networks', percentage: 95.0, attended: 19, total: 20 },
-        { course_name: 'Software Engineering', percentage: 92.3, attended: 12, total: 13 },
-        { course_name: 'Operating Systems', percentage: 93.8, attended: 15, total: 16 },
-        { course_name: 'Web Technologies', percentage: 96.7, attended: 14, total: 15 }
-      ]
-    },
-    {
-      student_id: 'STU005',
-      student_name: 'Arjun Singh',
-      roll_number: '22AI005',
-      overall_percentage: 82.1,
-      total_classes: 119,
-      attended_classes: 98,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 85.7, attended: 18, total: 21 },
-        { course_name: 'Data Structures', percentage: 77.8, attended: 14, total: 18 },
-        { course_name: 'Database Systems', percentage: 88.2, attended: 15, total: 17 },
-        { course_name: 'Computer Networks', percentage: 80.0, attended: 16, total: 20 },
-        { course_name: 'Software Engineering', percentage: 84.6, attended: 11, total: 13 },
-        { course_name: 'Operating Systems', percentage: 81.3, attended: 13, total: 16 },
-        { course_name: 'Web Technologies', percentage: 86.7, attended: 13, total: 15 }
-      ]
-    },
-    {
-      student_id: 'STU006',
-      student_name: 'Kavya Nair',
-      roll_number: '22AI006',
-      overall_percentage: 71.2,
-      total_classes: 113,
-      attended_classes: 80,
-      courses: [
-        { course_name: 'Machine Learning', percentage: 76.2, attended: 16, total: 21 },
-        { course_name: 'Data Structures', percentage: 66.7, attended: 12, total: 18 },
-        { course_name: 'Database Systems', percentage: 70.6, attended: 12, total: 17 },
-        { course_name: 'Computer Networks', percentage: 70.0, attended: 14, total: 20 },
-        { course_name: 'Software Engineering', percentage: 69.2, attended: 9, total: 13 },
-        { course_name: 'Operating Systems', percentage: 75.0, attended: 12, total: 16 },
-        { course_name: 'Web Technologies', percentage: 73.3, attended: 11, total: 15 }
-      ]
-    }
-  ]
-}
+// New computed property for filtered students
+const filteredStudents = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return sortedStudents.value
+  }
+  
+  const query = searchQuery.value.toLowerCase().trim()
+  return sortedStudents.value.filter(student => 
+    student.student_name.toLowerCase().includes(query) ||
+    String(student.roll_number).toLowerCase().includes(query)
+  )
+})
 
 const studentAnalytics = createResource({
   url: 'education.education.doctype.student_attendance_tool.student_attendance_tool.get_student_group_attendance_summary',
@@ -475,6 +447,26 @@ const toggleFilterDropdown = () => {
 const selectSort = (option) => {
   currentSort.value = option.value
   filterDropdownOpen.value = false
+}
+
+// New methods for search and view
+const toggleSearch = () => {
+  showSearch.value = !showSearch.value
+  if (!showSearch.value) {
+    searchQuery.value = ''
+  }
+}
+
+const toggleView = () => {
+  viewMode.value = viewMode.value === 'full' ? 'simple' : 'full'
+}
+
+const handleSearch = () => {
+  // Search is handled by the computed property
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
 }
 
 const getAttendanceStatusClass = (percentage) => {
@@ -763,7 +755,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.5rem;
+  gap: 0.75rem;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .filter-dropdown {
@@ -823,6 +821,96 @@ onMounted(() => {
   color: white;
 }
 
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.action-button.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* Search Container */
+.search-container {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+  color: #9ca3af;
+  z-index: 10;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 2.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  color: #374151;
+  background: white;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.clear-search {
+  position: absolute;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.clear-search:hover {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .students-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -842,6 +930,77 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1rem;
+}
+
+/* Simple View Styles */
+.students-simple-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.student-simple-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.student-simple-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.simple-student-info {
+  flex: 1;
+}
+
+.simple-student-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+}
+
+.simple-student-roll {
+  color: #6b7280;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.simple-attendance {
+  display: flex;
+  align-items: center;
+}
+
+.simple-percentage {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.clear-search-button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.clear-search-button:hover {
+  background: #2563eb;
 }
 
 /* Student Cards */
@@ -1178,26 +1337,6 @@ onMounted(() => {
   font-weight: 600;
   color: #1e293b;
   margin: 0;
-}d-label {
-  color: #6b21a8;
-}
-
-.stat-card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.stat-card-green .stat-card-value {
-  color: #047857;
-}
-
-.stat-card-blue .stat-card-value {
-  color: #1d4ed8;
-}
-
-.stat-card-purple .stat-card-value {
-  color: #7c3aed;
 }
 
 /* Courses Section - Professional Look */
@@ -1299,9 +1438,15 @@ onMounted(() => {
 
   .header-actions {
     width: 100%;
-    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .controls-row {
     justify-content: space-between;
-    align-items: center;
+  }
+
+  .search-container {
+    max-width: none;
   }
 
   .students-subtitle {
@@ -1380,8 +1525,16 @@ onMounted(() => {
   }
 
   .header-actions {
-    flex-direction: column;
-    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .controls-row {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .action-buttons {
+    align-self: flex-end;
   }
 
   .student-stats-single-row {
