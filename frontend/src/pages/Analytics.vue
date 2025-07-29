@@ -117,7 +117,7 @@
         >
           <div class="simple-student-info">
             <h3 class="simple-student-name">{{ student.student_name }}</h3>
-            <p class="simple-student-roll">{{ student.roll_number }}</p>
+            <p class="simple-student-roll">{{ student.student_id }}</p>
           </div>
           <div class="simple-attendance">
             <span 
@@ -142,7 +142,7 @@
           <div class="student-header">
             <div class="student-info">
               <h3 class="student-name">{{ student.student_name }}</h3>
-              <p class="student-roll">{{ student.roll_number }}</p>
+              <p class="student-roll">{{ student.student_id }}</p>
             </div>
             <div class="status-badge" :class="getAttendanceStatusClass(student.overall_percentage)">
               {{ getAttendanceStatus(student.overall_percentage) }}
@@ -218,7 +218,7 @@
         <div class="modal-header student-modal-header">
           <div class="modal-student-info">
             <h3 class="modal-student-name">{{ selectedStudent.student_name }}</h3>
-            <p class="modal-student-roll">{{ selectedStudent.roll_number }}</p>
+            <p class="modal-student-roll">{{ selectedStudent.student_id }}</p>
           </div>
           <button @click="closeModal" class="close-button">
             <FeatherIcon name="x" class="w-5 h-5" />
@@ -369,7 +369,7 @@ const sortedStudents = computed(() => {
     case 'attendance-low':
       return studentsCopy.sort((a, b) => a.overall_percentage - b.overall_percentage)
     case 'roll':
-      return studentsCopy.sort((a, b) => String(a.roll_number).localeCompare(String(b.roll_number)))
+      return studentsCopy.sort((a, b) => String(a.student_id).localeCompare(String(b.student_id)))
     default:
       return studentsCopy
   }
@@ -384,7 +384,7 @@ const filteredStudents = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   return sortedStudents.value.filter(student => 
     student.student_name.toLowerCase().includes(query) ||
-    String(student.roll_number).toLowerCase().includes(query)
+    String(student.student_id).toLowerCase().includes(query)
   )
 })
 
