@@ -45,6 +45,11 @@ const navigateToAttendance = (eventData) => {
       courseName: eventData.title,
       courseTime: `${formatTimeTo12Hour(eventData.start)} - ${formatTimeTo12Hour(eventData.end)}`,
       courseRoom: eventData.location,
+      courseDate: new Date(eventData.start).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+      }),
       allCourseScheduleId: eventData.allCourseScheduleId ? eventData.allCourseScheduleId.join(',') : eventData.id
     }
   })

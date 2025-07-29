@@ -26,6 +26,7 @@ const courseInfo = ref({
   name: route.query.courseName || 'Course',
   time: route.query.courseTime || '',
   room: route.query.courseRoom || '',
+  date: route.query.courseDate || new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }),
   scheduleId: courseScheduleId.value,
   studentGroup: studentGroup.value,
   allScheduleId: route.query.allCourseScheduleId ? route.query.allCourseScheduleId.split(',') : [courseScheduleId.value]

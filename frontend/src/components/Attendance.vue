@@ -7,7 +7,7 @@
       </button>
       <div class="header-info">
         <h1 class="course-title">{{ courseInfo.name }}</h1>
-        <p class="course-details">{{ courseInfo.time }}</p>
+        <p class="course-details">{{ courseInfo.date }} -> {{ courseInfo.time }}</p>
         <p class="course-room">{{ courseInfo.room }}</p>
       </div>
     </div>
@@ -56,12 +56,38 @@
           Mark all as absent
         </button>
       </div>
+      
+      <!-- Search Box -->
+      <div class="search-section">
+        <div class="search-container">
+          <FeatherIcon name="search" class="search-icon" />
+          <input 
+            type="text" 
+            v-model="searchQuery"
+            placeholder="Search by student name or roll number..."
+            class="search-input"
+          />
+          <button 
+            v-if="searchQuery" 
+            @click="clearSearch" 
+            class="clear-search-button"
+          >
+            <FeatherIcon name="x" class="w-4 h-4" />
+          </button>
+        </div>
+        <div v-if="searchQuery && filteredStudents.length === 0" class="no-results">
+          No students found matching "{{ searchQuery }}"
+        </div>
+        <div v-if="searchQuery && filteredStudents.length > 0" class="search-results-info">
+          Showing {{ filteredStudents.length }} of {{ students.length }} students
+        </div>
+      </div>
     </div>
 
     <!-- Students List -->
     <div class="students-list">
       <div 
-        v-for="student in students" 
+        v-for="student in filteredStudents" 
         :key="student.student"
         class="student-row"
         :class="{ 
@@ -229,6 +255,9 @@ const emit = defineEmits(['refresh-data'])
 // Local reactive copy of students for manipulation
 const students = ref([...props.students])
 
+// Search functionality
+const searchQuery = ref('')
+
 // Watch for changes in props.students
 watch(() => props.students, (newStudents) => {
   students.value = [...newStudents]
@@ -253,6 +282,22 @@ const errorTitle = ref('')
 const errorMessage = ref('')
 
 // Computed properties
+// Filtered students based on search query
+const filteredStudents = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return students.value
+  }
+  
+  const query = searchQuery.value.toLowerCase().trim()
+  
+  return students.value.filter(student => {
+    const studentName = (student.student_name || '').toLowerCase()
+    const rollNumber = (student.custom_student_id || student.student || '').toLowerCase()
+    
+    return studentName.includes(query) || rollNumber.includes(query)
+  })
+})
+
 // Updated computed properties for modal
 const editableStudents = computed(() => students.value.filter(s => !s.status))
 const editablePresentCount = computed(() => editableStudents.value.filter(s => s.checked === true).length)
@@ -295,6 +340,11 @@ const getPercentageClass = (percentage) => {
   if (percentage >= 85) return 'percentage-good'
   if (percentage >= 75) return 'percentage-average'
   return 'percentage-poor'
+}
+
+// Search methods
+const clearSearch = () => {
+  searchQuery.value = ''
 }
 
 // Methods
@@ -644,6 +694,7 @@ onMounted(() => {
   gap: 0.75rem;
   flex-wrap: nowrap;
   justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
 .action-button {
@@ -678,6 +729,79 @@ onMounted(() => {
 
 .mark-absent:hover:not(:disabled) {
   background: #dc2626;
+}
+
+/* Search Section Styles */
+.search-section {
+  margin-top: 0;
+}
+
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: #9ca3af;
+  width: 1rem;
+  height: 1rem;
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  background: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
+.clear-search-button {
+  position: absolute;
+  right: 0.5rem;
+  padding: 0.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  color: #6b7280;
+  transition: background-color 0.2s;
+}
+
+.clear-search-button:hover {
+  background: #f3f4f6;
+}
+
+.no-results {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+  background: #f9fafb;
+  border-radius: 0.375rem;
+}
+
+.search-results-info {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-align: center;
 }
 
 .students-list {
@@ -1000,7 +1124,10 @@ onMounted(() => {
 .modal-body p {
   margin: 0.25rem 0;
 }
-section {
+
+.submission-section,
+.already-submitted-section,
+.total-section {
   margin: 1rem 0;
   padding: 0.75rem;
   border-radius: 0.5rem;

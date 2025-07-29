@@ -483,6 +483,12 @@ const navigateToAttendance = (classItem) => {
       courseName: classItem.name,
       courseTime: classItem.time,
       courseRoom: classItem.room,
+      // July 16, 2023 format for date
+      courseDate: currentDate.value.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+      }),
       courseScheduleId: classItem.id,
       studentGroup: classItem.studentGroup,
       allCourseScheduleId: classItem.all_course_schedule_id ? classItem.all_course_schedule_id.join(',') : classItem.id
