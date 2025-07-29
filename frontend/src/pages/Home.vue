@@ -82,7 +82,7 @@ const transformClasses = (classesData) => {
     id: classItem.course_schedule_id,
     name: classItem.course_name,
     time: formatTime(classItem.start_time) + ' - ' + formatTime(classItem.end_time),
-    room: classItem.room,
+    room: classItem.room_name || classItem.room_id,
     startTime: classItem.start_time,
     endTime: classItem.end_time,
     color: classItem.color,
