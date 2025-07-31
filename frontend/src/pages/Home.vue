@@ -307,19 +307,15 @@ const combineConsecutiveCourses = (scheduleData) => {
         currentGroup.end_time = course.end_time
         currentGroup.all_course_schedule_id.push(course.course_schedule_id)
         
-        // Merge attendance_summary if both exist
+        // Keep the attendance_summary from the first course or use the one with data
+        // Don't sum up - these are the same students across consecutive time slots
         if (course.attendance_summary && Object.keys(course.attendance_summary).length > 0) {
           if (!currentGroup.attendance_summary || Object.keys(currentGroup.attendance_summary).length === 0) {
+            // If current group has no attendance data, use the new course's data
             currentGroup.attendance_summary = course.attendance_summary
-          } else {
-            // Merge attendance summaries by adding counts
-            currentGroup.attendance_summary = {
-              total_students: (currentGroup.attendance_summary.total_students || 0) + (course.attendance_summary.total_students || 0),
-              present_count: (currentGroup.attendance_summary.present_count || 0) + (course.attendance_summary.present_count || 0),
-              absent_count: (currentGroup.attendance_summary.absent_count || 0) + (course.attendance_summary.absent_count || 0),
-              on_leave_count: (currentGroup.attendance_summary.on_leave_count || 0) + (course.attendance_summary.on_leave_count || 0)
-            }
           }
+          // If both have attendance data, keep the existing one (same students)
+          // No need to merge/sum as it's the same course with same students
         }
       } else {
         // Not consecutive, save current group and start new one
