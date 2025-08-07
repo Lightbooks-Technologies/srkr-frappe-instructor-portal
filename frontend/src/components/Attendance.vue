@@ -42,6 +42,99 @@
 
     <!-- Instructions and Actions -->
     <div class="actions-section">
+      <!-- Course Topics Selection -->
+      <div class="topics-section">
+        <div class="topics-header">
+          <label class="topics-label">
+            Select Course Topics <span class="required-asterisk">*</span>
+          </label>
+          <div class="course-completion-checkbox">
+            <input 
+              type="checkbox" 
+              id="course-completed"
+              v-model="isCourseCompleted"
+              class="completion-checkbox"
+            />
+            <label for="course-completed" class="completion-label">
+              <span class="checkbox-icon">
+                <FeatherIcon v-if="isCourseCompleted" name="check" class="w-3 h-3 text-white" />
+              </span>
+              Course Completed
+            </label>
+          </div>
+        </div>
+        <div class="topics-dropdown">
+          <div 
+            @click="toggleTopicsDropdown" 
+            class="topics-selector"
+            :class="{ 'open': showTopicsDropdown, 'error': topicsError }"
+          >
+            <div class="selected-topics">
+              <span v-if="selectedTopics.length === 0" class="placeholder">
+                Select topics covered in this class...
+              </span>
+              <div v-else class="topics-display">
+                <span 
+                  v-for="topic in selectedTopics" 
+                  :key="topic.id"
+                  class="topic-tag"
+                >
+                  {{ topic.name }}
+                  <button 
+                    @click.stop="removeSelectedTopic(topic)"
+                    class="remove-topic"
+                  >
+                    <FeatherIcon name="x" class="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
+            </div>
+            <FeatherIcon 
+              name="chevron-down" 
+              class="dropdown-icon"
+              :class="{ 'rotated': showTopicsDropdown }"
+            />
+          </div>
+          
+          <div v-if="showTopicsDropdown" class="topics-dropdown-menu">
+            <div class="dropdown-search">
+              <FeatherIcon name="search" class="search-icon-small" />
+              <input 
+                type="text" 
+                v-model="topicsSearchQuery"
+                placeholder="Search topics..."
+                class="dropdown-search-input"
+                @click.stop
+              />
+            </div>
+            <div class="topics-list">
+              <div 
+                v-for="topic in filteredTopics" 
+                :key="topic.id"
+                class="topic-option"
+                :class="{ 'selected': isTopicSelected(topic) }"
+                @click="toggleTopicSelection(topic)"
+              >
+                <div class="topic-checkbox">
+                  <FeatherIcon 
+                    v-if="isTopicSelected(topic)" 
+                    name="check" 
+                    class="w-4 h-4 text-white" 
+                  />
+                </div>
+                <span class="topic-name">{{ topic.name }}</span>
+              </div>
+              <div v-if="filteredTopics.length === 0" class="no-topics">
+                No topics found
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="topicsError" class="error-message">
+          Please select at least one course topic before submitting attendance.
+        </div>
+      </div>
+
       <div class="bulk-actions">
         <button 
           @click="markAllAsPresent" 
@@ -144,6 +237,7 @@
       <button @click="submitAttendance" class="submit-button" :disabled="isSubmitDisabled">
         <span v-if="isSubmitting">Submitting...</span>
         <span v-else-if="allStudentsHaveStatus">Attendance Already Submitted</span>
+        <span v-else-if="selectedTopics.length === 0">Please select course topics</span>
         <span v-else-if="unmarkedCount > 0">Please mark all students ({{ unmarkedCount }} unmarked)</span>
         <span v-else>Submit Attendance</span>
       </button>
@@ -160,6 +254,24 @@
         </div>
         <div class="modal-body">
           <p>Do you want to submit attendance for the remaining students?</p>
+          
+          <!-- Selected Topics -->
+          <div class="submission-section">
+            <h4 class="section-title">Selected Course Topics:</h4>
+            <div class="selected-topics-list">
+              <span 
+                v-for="topic in selectedTopics" 
+                :key="topic.id"
+                class="topic-pill"
+              >
+                {{ topic.name }}
+              </span>
+            </div>
+            <div class="course-completion-status" v-if="isCourseCompleted">
+              <FeatherIcon name="check-circle" class="w-4 h-4 text-green-600" />
+              <span class="completion-text">Course marked as completed</span>
+            </div>
+          </div>
           
           <!-- Current Submission -->
           <div class="submission-section">
@@ -233,7 +345,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
 import { createResource } from 'frappe-ui'
 
@@ -257,6 +369,32 @@ const students = ref([...props.students])
 
 // Search functionality
 const searchQuery = ref('')
+
+// Topics functionality
+const showTopicsDropdown = ref(false)
+const selectedTopics = ref([])
+const topicsSearchQuery = ref('')
+const topicsError = ref(false)
+const isCourseCompleted = ref(false)
+
+// Mock Course Topics Data
+const mockTopics = ref([
+  { id: 1, name: "Introduction to Machine Learning" },
+  { id: 2, name: "Supervised Learning Algorithms" },
+  { id: 3, name: "Neural Networks and Deep Learning" },
+  { id: 4, name: "Unsupervised Learning Techniques" },
+  { id: 5, name: "Natural Language Processing" },
+  { id: 6, name: "Computer Vision Fundamentals" },
+  { id: 7, name: "Reinforcement Learning" },
+  { id: 8, name: "Data Preprocessing and Feature Engineering" },
+  { id: 9, name: "Model Evaluation and Validation" },
+  { id: 10, name: "Ethics in AI and Machine Learning" },
+  { id: 11, name: "Transfer Learning" },
+  { id: 12, name: "Ensemble Methods" },
+  { id: 13, name: "Time Series Analysis" },
+  { id: 14, name: "Clustering Algorithms" },
+  { id: 15, name: "Dimensionality Reduction" }
+])
 
 // Watch for changes in props.students
 watch(() => props.students, (newStudents) => {
@@ -298,6 +436,19 @@ const filteredStudents = computed(() => {
   })
 })
 
+// Filtered topics based on search query
+const filteredTopics = computed(() => {
+  if (!topicsSearchQuery.value.trim()) {
+    return mockTopics.value
+  }
+  
+  const query = topicsSearchQuery.value.toLowerCase().trim()
+  
+  return mockTopics.value.filter(topic => 
+    topic.name.toLowerCase().includes(query)
+  )
+})
+
 // Updated computed properties for modal
 const editableStudents = computed(() => students.value.filter(s => !s.status))
 const editablePresentCount = computed(() => editableStudents.value.filter(s => s.checked === true).length)
@@ -323,11 +474,12 @@ const studentsWithoutStatus = computed(() => students.value.filter(s => !s.statu
 const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0)
 const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && studentsWithoutStatus.value.length > 0)
 
-// Submit button state - disable if there are unmarked students or all have status
+// Submit button state - disable if there are unmarked students, all have status, or no topics selected
 const isSubmitDisabled = computed(() => 
   allStudentsHaveStatus.value || 
   isSubmitting.value || 
-  unmarkedCount.value > 0
+  unmarkedCount.value > 0 ||
+  selectedTopics.value.length === 0
 )
 
 // Helper function to check if student is disabled
@@ -345,6 +497,43 @@ const getPercentageClass = (percentage) => {
 // Search methods
 const clearSearch = () => {
   searchQuery.value = ''
+}
+
+// Topics methods
+const toggleTopicsDropdown = () => {
+  showTopicsDropdown.value = !showTopicsDropdown.value
+  if (showTopicsDropdown.value) {
+    topicsSearchQuery.value = ''
+    topicsError.value = false
+  }
+}
+
+const isTopicSelected = (topic) => {
+  return selectedTopics.value.some(selected => selected.id === topic.id)
+}
+
+const toggleTopicSelection = (topic) => {
+  const index = selectedTopics.value.findIndex(selected => selected.id === topic.id)
+  if (index > -1) {
+    selectedTopics.value.splice(index, 1)
+  } else {
+    selectedTopics.value.push(topic)
+  }
+  topicsError.value = false
+}
+
+const removeSelectedTopic = (topic) => {
+  const index = selectedTopics.value.findIndex(selected => selected.id === topic.id)
+  if (index > -1) {
+    selectedTopics.value.splice(index, 1)
+  }
+}
+
+// Close dropdown when clicking outside
+const closeTopicsDropdown = (event) => {
+  if (!event.target.closest('.topics-dropdown')) {
+    showTopicsDropdown.value = false
+  }
 }
 
 // Methods
@@ -385,6 +574,12 @@ const resetAttendance = () => {
 }
 
 const submitAttendance = () => {
+  // Check if topics are selected
+  if (selectedTopics.value.length === 0) {
+    topicsError.value = true
+    return
+  }
+  
   // Check if all students are marked
   if (unmarkedCount.value > 0) {
     return // Don't show modal if there are unmarked students
@@ -538,7 +733,12 @@ const confirmSubmit = () => {
       checked: false
     }))),
     student_group: props.courseInfo.studentGroup || '',
-    course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId
+    course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
+    topics: JSON.stringify(selectedTopics.value.map(topic => ({
+      id: topic.id,
+      name: topic.name
+    }))),
+    course_completed: isCourseCompleted.value
   }
   
   console.log('Submitting attendance with data:', requestData)
@@ -555,7 +755,9 @@ const autoSave = () => {
     students: students.value.map(s => ({
       student: s.student,
       checked: s.checked
-    }))
+    })),
+    selectedTopics: selectedTopics.value,
+    isCourseCompleted: isCourseCompleted.value
   }
   localStorage.setItem('attendance_draft', JSON.stringify(attendanceState))
 }
@@ -574,6 +776,14 @@ const loadAutoSave = () => {
             student.checked = savedStudent.checked
           }
         })
+        
+        // Restore selected topics and course completion status
+        if (data.selectedTopics) {
+          selectedTopics.value = data.selectedTopics
+        }
+        if (data.isCourseCompleted !== undefined) {
+          isCourseCompleted.value = data.isCourseCompleted
+        }
       }
     }
   } catch (error) {
@@ -582,10 +792,17 @@ const loadAutoSave = () => {
 }
 
 // Watch for changes and auto-save
-watch(students, autoSave, { deep: true })
+watch([students, selectedTopics, isCourseCompleted], autoSave, { deep: true })
 
 onMounted(() => {
   loadAutoSave()
+  // Add event listener for closing topics dropdown when clicking outside
+  document.addEventListener('click', closeTopicsDropdown)
+})
+
+// Clean up event listeners
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeTopicsDropdown)
 })
 </script>
 
@@ -687,6 +904,278 @@ onMounted(() => {
 
 .actions-section {
   padding: 1rem;
+}
+
+/* Topics Selection Styles */
+.topics-section {
+  margin-bottom: 1rem;
+}
+
+.topics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.topics-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+}
+
+.course-completion-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.completion-checkbox {
+  opacity: 0;
+  position: absolute;
+  width: 16px;
+  height: 16px;
+}
+
+.completion-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.checkbox-icon {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d1d5db;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  background: white;
+}
+
+.completion-checkbox:checked + .completion-label .checkbox-icon {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.completion-label:hover .checkbox-icon {
+  border-color: #9ca3af;
+}
+
+.required-asterisk {
+  color: #ef4444;
+  margin-left: 0.25rem;
+}
+
+.topics-dropdown {
+  position: relative;
+}
+
+.topics-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 3rem;
+}
+
+.topics-selector:hover {
+  border-color: #9ca3af;
+}
+
+.topics-selector.open {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.topics-selector.error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.selected-topics {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.placeholder {
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.topics-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.topic-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #3b82f6;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.remove-topic {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.125rem;
+  border-radius: 0.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.remove-topic:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dropdown-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #6b7280;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.dropdown-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.topics-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #d1d5db;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  max-height: 300px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.dropdown-search {
+  position: relative;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.search-icon-small {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #9ca3af;
+}
+
+.dropdown-search-input {
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 2rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.dropdown-search-input:focus {
+  border-color: #3b82f6;
+}
+
+.topics-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.topic-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.topic-option:hover {
+  background: #f9fafb;
+}
+
+.topic-option:last-child {
+  border-bottom: none;
+}
+
+.topic-option.selected {
+  background: #eff6ff;
+}
+
+.topic-checkbox {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.topic-option.selected .topic-checkbox {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.topic-name {
+  font-size: 0.9rem;
+  color: #374151;
+  flex: 1;
+}
+
+.no-topics {
+  padding: 1rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.375rem;
+  color: #dc2626;
+  font-size: 0.875rem;
 }
 
 .bulk-actions {
@@ -1079,6 +1568,39 @@ onMounted(() => {
 
 .modal-body p:last-child {
   margin-bottom: 0;
+}
+
+.selected-topics-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.topic-pill {
+  background: #3b82f6;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.course-completion-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
+  border-radius: 0.375rem;
+}
+
+.completion-text {
+  font-size: 0.85rem;
+  color: #166534;
+  font-weight: 500;
 }
 
 .modal-actions {
