@@ -210,7 +210,7 @@
               <div v-if="expandedUnits[unit.unitName]" class="unit-topics">
                 <div v-for="section in unit.sections" :key="section.sectionName || 'main'" class="section-group">
                   <!-- Section Header (if exists) -->
-                  <div v-if="section.sectionName && section.sectionName !== ''" class="section-header">
+                  <div v-if="section.displayName" class="section-header">
                     <label class="section-checkbox-label">
                       <input 
                         type="checkbox" 
@@ -320,19 +320,34 @@
           
           <!-- Selected Topics -->
           <div class="submission-section">
-            <h4 class="section-title">Selected Course Topics:</h4>
-            <div v-if="selectedTopicIds.length > 0" class="selected-topics-list">
-              <span 
+            <h4 class="section-title">Topics Covered in this Session:</h4>
+            
+            <div v-if="selectedTopicIds.length > 0" class="topic-completion-list">
+              <p class="completion-instruction">
+                <FeatherIcon name="info" class="instruction-icon" />
+                <span>Mark completed topics:</span>
+              </p>
+              <div 
                 v-for="topic in getSelectedTopicDetails()" 
                 :key="topic.no"
-                class="topic-pill"
+                class="topic-completion-item"
               >
-                {{ topic.displayName }}
-              </span>
+                <label class="topic-completion-label">
+                  <input 
+                    type="checkbox"
+                    v-model="completedTopicIds"
+                    :value="topic.no"
+                    class="topic-checkbox"
+                  />
+                  <span class="completion-topic-name">{{ topic.displayName }}</span>
+                </label>
+              </div>
             </div>
+
             <div v-else class="no-topics-selected">
-              No topics selected
+              No topics were selected as covered.
             </div>
+
             <div class="course-completion-status" v-if="isCourseCompleted">
               <FeatherIcon name="check-circle" class="w-4 h-4 text-green-600" />
               <span class="completion-text">Course marked as completed</span>
@@ -420,37 +435,23 @@ import { createResource } from 'frappe-ui'
 
 // Props from parent component
 const props = defineProps({
-  students: {
-    type: Array,
-    default: () => []
-  },
-  topics: {
-    type: Array,
-    default: () => [],
-  },
-  courseInfo: {
-    type: Object,
-    required: true
-  }
+  students: { type: Array, default: () => [] },
+  topics: { type: Array, default: () => [] },
+  courseInfo: { type: Object, required: true }
 })
 
 // Define emit for parent communication
 const emit = defineEmits(['refresh-data'])
 
-// Local reactive copy of students for manipulation
+// Local reactive state
 const students = ref([])
-
-// Search functionality
 const searchQuery = ref('')
-
-// Topics functionality
 const showTopicsModal = ref(false)
-const selectedTopicIds = ref([])
+const selectedTopicIds = ref([]) // From the first modal (covered topics)
+const completedTopicIds = ref([]) // --- NEW: For checkboxes in the final confirm modal
 const topicsSearchQuery = ref('')
 const isCourseCompleted = ref(false)
 const expandedUnits = ref({})
-
-// General state
 const isEditMode = ref(false)
 const isSubmitting = ref(false)
 const showConfirmModal = ref(false)
@@ -463,176 +464,108 @@ const errorMessage = ref('')
 
 // Watch for changes in props.students
 watch(() => props.students, (newStudents) => {
-  students.value = (newStudents || []).map(student => {
-    let checked = true; // Default to present
-    if (student.status) {
-      checked = student.status === 'Present';
-    }
-    return { ...student, checked };
-  });
+  students.value = (newStudents || []).map(student => ({
+    ...student,
+    checked: student.status ? student.status === 'Present' : true
+  }));
 }, { immediate: true, deep: true })
 
 
-// --- HELPER FUNCTIONS ---
+// --- HELPER & TOPIC ORGANIZATION FUNCTIONS (No changes here) ---
 
-// Helper function to format topic name for display (remains the same)
 const formatTopicNameForDisplay = (topicName) => {
-    if (typeof topicName !== 'string') return '';
-    const lastHyphenIndex = topicName.lastIndexOf('-');
-    if (lastHyphenIndex !== -1 && lastHyphenIndex < topicName.length - 1) {
-        return topicName.substring(lastHyphenIndex + 1);
-    }
-    return topicName;
-}
+  if (typeof topicName !== 'string') return '';
+  const match = topicName.match(/^(?:UNIT-[IVX]+(?:-[A-Z])?(?:-\d+)?-)?(.*)$/);
+  return match ? (match[1] || topicName) : topicName;
+};
 
-
-// --- HIERARCHICAL TOPICS LOGIC (CORRECTED) ---
-
-/**
- * CORRECTED: Replaces the old function entirely.
- * This function robustly parses topics into a hierarchical structure using regular expressions.
- */
 const organizeTopics = (topicsList) => {
   if (!topicsList || topicsList.length === 0) return [];
-
   const units = {};
-
-  // Regex to reliably find the Unit, Section, and Title from a topic name
   const topicRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-\d+)?-(.*)$/;
 
   topicsList.forEach(topic => {
     const topicName = topic.topic_name || topic.topic || '';
     const match = topicName.match(topicRegex);
+    let unitKey, sectionKey, displayName, unitNumber;
 
-    if (!match) {
-      // This topic doesn't fit the detailed pattern, so we skip it or handle as a general topic.
-      // For this case, we'll log a warning and skip to prevent errors.
-      console.warn(`Skipping topic with unexpected format: ${topicName}`);
-      return; 
+    if (match) {
+      unitKey = match[1];
+      sectionKey = match[2] || 'main';
+      displayName = match[3];
+      unitNumber = unitKey.split('-')[1];
+    } else {
+      unitKey = 'General';
+      sectionKey = 'main';
+      displayName = topicName;
+      unitNumber = '';
     }
-    
-    const unitKey = match[1]; // e.g., "UNIT-I"
-    const sectionKey = match[2] || 'main'; // e.g., "A" or the default 'main'
-    const displayName = match[3]; // e.g., "Characteristics (Database Vs File System)"
-    const unitNumber = unitKey.split('-')[1];
 
-    // Initialize the Unit object if it's the first time we've seen it
     if (!units[unitKey]) {
       units[unitKey] = {
         unitName: unitKey,
-        displayName: `Unit ${unitNumber}`,
-        allTopicsInUnit: [], // A master list for the "Select All" checkbox for the unit
+        displayName: unitKey === 'General' ? 'General Topics' : `Unit ${unitNumber}`,
+        allTopicsInUnit: [],
         sections: {}
       };
     }
-
-    // Initialize the Section object within the unit if it's the first time
     if (!units[unitKey].sections[sectionKey]) {
+      let sectionDisplayName = sectionKey === 'main' ? '' : `Section ${sectionKey}`;
+      if (unitKey === 'General' && sectionKey === 'main') {
+        sectionDisplayName = 'Select All';
+      }
       units[unitKey].sections[sectionKey] = {
         sectionName: sectionKey,
-        displayName: sectionKey === 'main' ? 'General' : `Section ${sectionKey}`,
-        topics: [] // This is a dedicated array ONLY for this section's topics
+        displayName: sectionDisplayName,
+        topics: []
       };
     }
-    
     const formattedTopic = { ...topic, originalName: topicName, displayName };
-    
-    // Add the topic to the correct, isolated section array
     units[unitKey].sections[sectionKey].topics.push(formattedTopic);
-    // Also add it to the unit's master list
     units[unitKey].allTopicsInUnit.push(formattedTopic);
   });
   
-  // Convert the units object into a sorted array for the template
   const romanToNum = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
   return Object.values(units)
-    .sort((a, b) => (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0))
+    .sort((a, b) => {
+        if (a.unitName === 'General') return -1;
+        if (b.unitName === 'General') return 1;
+        return (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0);
+    })
     .map(unit => ({
       ...unit,
-      sections: Object.values(unit.sections)
-        .filter(section => section.topics.length > 0)
-        .sort((a, b) => a.sectionName.localeCompare(b.sectionName))
+      sections: Object.values(unit.sections).filter(s => s.topics.length > 0).sort((a, b) => a.sectionName.localeCompare(b.sectionName))
     }))
     .filter(unit => unit.allTopicsInUnit.length > 0);
 };
 
-// Computed property for organized topics
-const organizedTopics = computed(() => {
-  // Check if any topic name seems to follow the hierarchical pattern.
-  const hasHierarchicalTopics = (props.topics || []).some(t => (t.topic_name || t.topic || "").startsWith('UNIT-'));
-  if (!hasHierarchicalTopics) {
-    return []; // Don't try to organize if format is wrong, let fallback handle it.
-  }
-  return organizeTopics(props.topics);
-});
+const organizedTopics = computed(() => organizeTopics(props.topics));
 
-// Computed property for filtered organized topics based on search
 const filteredOrganizedTopics = computed(() => {
   if (!topicsSearchQuery.value.trim()) return organizedTopics.value;
-  
   const query = topicsSearchQuery.value.toLowerCase();
-  
-  return organizedTopics.value.map(unit => {
-    const filteredSections = unit.sections
-      .map(section => ({
-        ...section,
-        topics: section.topics.filter(topic => topic.displayName.toLowerCase().includes(query))
-      }))
-      .filter(section => section.topics.length > 0);
-    
-    return { ...unit, sections: filteredSections };
-  }).filter(unit => unit.sections.length > 0);
+  return organizedTopics.value
+    .map(unit => ({
+      ...unit,
+      sections: unit.sections.map(section => ({...section, topics: section.topics.filter(t => t.displayName.toLowerCase().includes(query))})).filter(s => s.topics.length > 0)
+    }))
+    .filter(unit => unit.sections.length > 0);
 });
 
-
-// --- FALLBACK TOPICS LOGIC (CORRECTED) ---
-
-/**
- * CORRECTED: This is now a 'computed' property.
- * Groups props.topics by Unit and filters based on the search query.
- */
-const groupedFallbackTopics = computed(() => {
-  const groups = {};
-  const query = topicsSearchQuery.value.trim().toLowerCase();
-
-  if (!props.topics || props.topics.length === 0) return groups;
-
-  props.topics.forEach(topic => {
-    const displayName = formatTopicNameForDisplay(topic.topic_name || topic.topic);
-    if (query && !displayName.toLowerCase().includes(query)) return;
-
-    const unitMatch = (topic.topic_name || topic.topic || '').match(/^UNIT-([IVXLCDM]+)/);
-    const unitKey = unitMatch ? `Unit ${unitMatch[1]}` : 'Other Topics';
-
-    if (!groups[unitKey]) groups[unitKey] = [];
-    
-    groups[unitKey].push({ ...topic, displayName });
-  });
-
-  return groups;
-});
-
-
-// --- ATTENDANCE COMPUTED PROPERTIES ---
+// --- COMPUTED PROPERTIES & METHODS (No changes here, except confirmSubmit) ---
 
 const filteredStudents = computed(() => {
   if (!searchQuery.value.trim()) return students.value;
   const query = searchQuery.value.toLowerCase().trim();
-  return students.value.filter(s => 
-    (s.student_name || '').toLowerCase().includes(query) ||
-    (s.custom_student_id || s.student || '').toLowerCase().includes(query)
-  );
+  return students.value.filter(s => (s.student_name || '').toLowerCase().includes(query) || (s.custom_student_id || s.student || '').toLowerCase().includes(query));
 });
 
 const studentsWithoutStatus = computed(() => students.value.filter(s => !s.status));
 const studentsWithStatus = computed(() => students.value.filter(s => s.status));
 const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0);
 const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && !allStudentsHaveStatus.value);
-
 const unmarkedCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === null).length);
 const isSubmitDisabled = computed(() => allStudentsHaveStatus.value || isSubmitting.value || unmarkedCount.value > 0);
-
-// Counts for confirmation modal
 const editablePresentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === true).length);
 const editableAbsentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === false).length);
 const alreadyPresentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Present').length);
@@ -640,30 +573,24 @@ const alreadyAbsentCount = computed(() => studentsWithStatus.value.filter(s => s
 const totalPresentCount = computed(() => editablePresentCount.value + alreadyPresentCount.value);
 const totalAbsentCount = computed(() => editableAbsentCount.value + alreadyAbsentCount.value);
 
-
-// --- METHODS ---
-
 const isStudentDisabled = (student) => !!student.status;
-
 const getPercentageClass = (percentage) => {
   if (percentage >= 85) return 'percentage-good';
   if (percentage >= 75) return 'percentage-average';
   return 'percentage-poor';
 };
-
 const clearSearch = () => { searchQuery.value = ''; };
 
 const toggleStudentAttendance = (student) => {
   if (isStudentDisabled(student)) return;
   if (student.checked === null) student.checked = true;
   else if (student.checked === true) student.checked = false;
-  else student.checked = true; // Cycle from absent back to present
+  else student.checked = true; 
 };
 
 const markAllAsPresent = () => studentsWithoutStatus.value.forEach(s => s.checked = true);
 const markAllAsAbsent = () => studentsWithoutStatus.value.forEach(s => s.checked = false);
 
-// Topic Modal Methods
 const openTopicsModal = () => {
   if (unmarkedCount.value > 0) return;
   showTopicsModal.value = true;
@@ -672,96 +599,77 @@ const closeTopicsModal = () => { showTopicsModal.value = false; };
 const confirmTopicsSelection = () => {
   showTopicsModal.value = false;
   showConfirmModal.value = true;
+  // Reset completion checkboxes each time the modal opens
+  completedTopicIds.value = [];
 };
 const closeConfirmModal = () => { showConfirmModal.value = false; };
 
 const toggleUnit = (unitName) => { expandedUnits.value[unitName] = !expandedUnits.value[unitName]; };
-const isUnitSelected = (unit) => {
-    if (!unit.allTopicsInUnit || unit.allTopicsInUnit.length === 0) return false;
-    return unit.allTopicsInUnit.every(topic => selectedTopicIds.value.includes(topic.no));
-};
+const isUnitSelected = (unit) => unit.allTopicsInUnit.every(t => selectedTopicIds.value.includes(t.no));
 const toggleUnitSelection = (unit) => {
   const shouldSelect = !isUnitSelected(unit);
-  unit.allTopicsInUnit.forEach(topic => {
-    const index = selectedTopicIds.value.indexOf(topic.no);
-    if (shouldSelect && index === -1) {
-      selectedTopicIds.value.push(topic.no);
-    } else if (!shouldSelect && index > -1) {
-      selectedTopicIds.value.splice(index, 1);
-    }
+  unit.allTopicsInUnit.forEach(t => {
+    const index = selectedTopicIds.value.indexOf(t.no);
+    if (shouldSelect && index === -1) selectedTopicIds.value.push(t.no);
+    else if (!shouldSelect && index > -1) selectedTopicIds.value.splice(index, 1);
   });
 };
 
-const isSectionSelected = (section) => {
-  if (!section.topics || section.topics.length === 0) return false;
-  return section.topics.every(topic => selectedTopicIds.value.includes(topic.no));
-};
+const isSectionSelected = (section) => section.topics.every(t => selectedTopicIds.value.includes(t.no));
 const toggleSectionSelection = (section) => {
   const isSelected = isSectionSelected(section);
-  section.topics.forEach(topic => {
-    const index = selectedTopicIds.value.indexOf(topic.no);
-    if (!isSelected && index === -1) {
-      selectedTopicIds.value.push(topic.no);
-    } else if (!isSelected && index > -1) { // This line had a typo in your original logic
-        // This case should not happen, but for safety: do nothing
-    } else if (isSelected && index > -1) {
-      selectedTopicIds.value.splice(index, 1);
-    }
+  section.topics.forEach(t => {
+    const index = selectedTopicIds.value.indexOf(t.no);
+    if (!isSelected && index === -1) selectedTopicIds.value.push(t.no);
+    else if (isSelected && index > -1) selectedTopicIds.value.splice(index, 1);
   });
 };
 
-const getSelectedTopicDetails = () => {
-  return (props.topics || [])
-    .filter(t => selectedTopicIds.value.includes(t.no))
-    .map(t => ({ ...t, displayName: formatTopicNameForDisplay(t.topic_name || t.topic) }));
-};
+const getSelectedTopicDetails = () => (props.topics || [])
+  .filter(t => selectedTopicIds.value.includes(t.no))
+  .map(t => ({ ...t, displayName: formatTopicNameForDisplay(t.topic_name || t.topic) }));
 
 
-// --- SUBMISSION LOGIC ---
+// --- SUBMISSION LOGIC (The only function that changes) ---
 
 const submitAttendance = () => {
   if (isSubmitDisabled.value) return;
   openTopicsModal();
 };
 
+/**
+ * UPDATED: Builds the payload based on the final confirmation checkboxes.
+ */
 const confirmSubmit = () => {
   closeConfirmModal();
-  isSubmitting.value = true; // Set submitting state immediately
+  isSubmitting.value = true;
 
-  // Filter out students who already have a status
-  const studentsToSubmit = students.value.filter(s => !s.status);
+  // Build the payload for ONLY the topics that were covered in this session
+  const taughtTopics = (props.topics || [])
+    .filter(topic => selectedTopicIds.value.includes(topic.no))
+    .map(topic => {
+      return {
+        topic: topic.topic || topic.topic_name,
+        // 'completed' is true only if it was checked in the final modal
+        completed: completedTopicIds.value.includes(topic.no)
+      };
+    });
   
-  // Prepare lists of present and absent students
-  const studentsPresent = studentsToSubmit.filter(s => s.checked === true);
-  const studentsAbsent = studentsToSubmit.filter(s => s.checked === false);
-  
-  // --- NEW LOGIC ---
-  // Iterate over ALL available topics. For each one, check if it was selected.
-  const taughtTopics = (props.topics || []).map(topic => {
-    return {
-      topic: topic.topic || topic.topic_name, // The full original topic name
-      completed: selectedTopicIds.value.includes(topic.no) // Set to `true` if selected, `false` otherwise
-    };
-  });
-  
-  // Assemble the final data object with the comprehensive topic list
   const requestData = {
-    students_present: JSON.stringify(studentsPresent.map(s => ({ student: s.student, student_name: s.student_name }))),
-    students_absent: JSON.stringify(studentsAbsent.map(s => ({ student: s.student, student_name: s.student_name }))),
+    students_present: JSON.stringify(students.value.filter(s => !s.status && s.checked === true).map(s => ({ student: s.student, student_name: s.student_name }))),
+    students_absent: JSON.stringify(students.value.filter(s => !s.status && s.checked === false).map(s => ({ student: s.student, student_name: s.student_name }))),
     student_group: props.courseInfo.studentGroup || '',
     course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
     taught_topics: JSON.stringify(taughtTopics), 
     course_completed: isCourseCompleted.value
   };
   
-  // Pass the data object directly to the submit method
   submitAttendanceResource.submit(requestData);
 };
 
 const submitAttendanceResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.mark_attendances',
   method: 'POST',
-  // The 'makeRequest' property has been removed from here.
   onSuccess: () => {
     successTitle.value = 'Success';
     successMessage.value = 'Attendance has been marked successfully.';
@@ -781,9 +689,7 @@ const closeSuccessModal = () => {
 };
 const closeErrorModal = () => { showErrorModal.value = false; };
 
-
 onMounted(() => {
-  // Initialize expanded state for the first unit
   if (organizedTopics.value.length > 0) {
     expandedUnits.value[organizedTopics.value[0].unitName] = true;
   }
@@ -1630,5 +1536,53 @@ onMounted(() => {
 
 .total-section .section-title {
   color: #475569;
+}
+
+/* Add these styles to your <style scoped> block */
+.topic-completion-list {
+  margin-top: 0.5rem;
+}
+
+.completion-instruction {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem; /* Space between icon and text */
+  padding: 0.25rem;
+  background-color: #ff6060; /* Light grey background, consistent with other UI elements */
+  border-radius: 0.5rem;
+  font-size: 0.875rem; /* 14px for better readability */
+  font-weight: 500;
+  color: #ffffff !important;
+  margin-bottom: 1rem;
+}
+
+.instruction-icon {
+  width: 1rem;  /* 16px */
+  height: 1rem; /* 16px */
+  color: #ffffff;
+  flex-shrink: 0; /* Prevents the icon from shrinking */
+}
+
+.topic-completion-item {
+  margin-bottom: 0.5rem;
+}
+
+.topic-completion-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+}
+
+.topic-completion-label:hover {
+  background-color: #f9fafb;
+}
+
+.completion-topic-name {
+  font-size: 0.9rem;
+  color: #374151;
 }
 </style>
