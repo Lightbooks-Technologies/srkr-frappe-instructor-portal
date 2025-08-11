@@ -7,7 +7,7 @@
       </button>
       <div class="header-info">
         <h1 class="course-title">{{ courseInfo.name }}</h1>
-        <p class="course-details">{{ courseInfo.date }} -> {{ courseInfo.time }}</p>
+        <p class="course-details">{{ courseInfo.date }} → {{ courseInfo.time }}</p>
         <p class="course-room">{{ courseInfo.room }}</p>
       </div>
     </div>
@@ -42,99 +42,6 @@
 
     <!-- Instructions and Actions -->
     <div class="actions-section">
-      <!-- Course Topics Selection -->
-      <div class="topics-section">
-        <div class="topics-header">
-          <label class="topics-label">
-            Select Course Topics <span class="required-asterisk">*</span>
-          </label>
-          <div class="course-completion-checkbox">
-            <input 
-              type="checkbox" 
-              id="course-completed"
-              v-model="isCourseCompleted"
-              class="completion-checkbox"
-            />
-            <label for="course-completed" class="completion-label">
-              <span class="checkbox-icon">
-                <FeatherIcon v-if="isCourseCompleted" name="check" class="w-3 h-3 text-white" />
-              </span>
-              Course Completed
-            </label>
-          </div>
-        </div>
-        <div class="topics-dropdown">
-          <div 
-            @click="toggleTopicsDropdown" 
-            class="topics-selector"
-            :class="{ 'open': showTopicsDropdown, 'error': topicsError }"
-          >
-            <div class="selected-topics">
-              <span v-if="selectedTopics.length === 0" class="placeholder">
-                Select topics covered in this class...
-              </span>
-              <div v-else class="topics-display">
-                <span 
-                  v-for="topic in selectedTopics" 
-                  :key="topic.id"
-                  class="topic-tag"
-                >
-                  {{ topic.name }}
-                  <button 
-                    @click.stop="removeSelectedTopic(topic)"
-                    class="remove-topic"
-                  >
-                    <FeatherIcon name="x" class="w-3 h-3" />
-                  </button>
-                </span>
-              </div>
-            </div>
-            <FeatherIcon 
-              name="chevron-down" 
-              class="dropdown-icon"
-              :class="{ 'rotated': showTopicsDropdown }"
-            />
-          </div>
-          
-          <div v-if="showTopicsDropdown" class="topics-dropdown-menu">
-            <div class="dropdown-search">
-              <FeatherIcon name="search" class="search-icon-small" />
-              <input 
-                type="text" 
-                v-model="topicsSearchQuery"
-                placeholder="Search topics..."
-                class="dropdown-search-input"
-                @click.stop
-              />
-            </div>
-            <div class="topics-list">
-              <div 
-                v-for="topic in filteredTopics" 
-                :key="topic.id"
-                class="topic-option"
-                :class="{ 'selected': isTopicSelected(topic) }"
-                @click="toggleTopicSelection(topic)"
-              >
-                <div class="topic-checkbox">
-                  <FeatherIcon 
-                    v-if="isTopicSelected(topic)" 
-                    name="check" 
-                    class="w-4 h-4 text-white" 
-                  />
-                </div>
-                <span class="topic-name">{{ topic.name }}</span>
-              </div>
-              <div v-if="filteredTopics.length === 0" class="no-topics">
-                No topics found
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-if="topicsError" class="error-message">
-          Please select at least one course topic before submitting attendance.
-        </div>
-      </div>
-
       <div class="bulk-actions">
         <button 
           @click="markAllAsPresent" 
@@ -237,10 +144,166 @@
       <button @click="submitAttendance" class="submit-button" :disabled="isSubmitDisabled">
         <span v-if="isSubmitting">Submitting...</span>
         <span v-else-if="allStudentsHaveStatus">Attendance Already Submitted</span>
-        <span v-else-if="selectedTopics.length === 0">Please select course topics</span>
         <span v-else-if="unmarkedCount > 0">Please mark all students ({{ unmarkedCount }} unmarked)</span>
         <span v-else>Submit Attendance</span>
       </button>
+    </div>
+
+    <!-- Topics Selection Modal -->
+    <div v-if="showTopicsModal" class="modal-overlay" @click.stop>
+      <div class="modal-content topics-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Select Course Topics Covered</h3>
+          <button @click="closeTopicsModal" class="close-button">
+            <FeatherIcon name="x" class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="modal-body topics-modal-body">
+          <p class="topics-instruction">Please select the topics that were covered in this class session:</p>
+          
+          <!-- Course Completion Checkbox -->
+          <!-- <div class="course-completion-section">
+            <label class="course-completion-label">
+              <input 
+                type="checkbox" 
+                v-model="isCourseCompleted"
+                class="course-checkbox"
+              />
+              <span class="checkbox-text">Mark course as completed</span>
+            </label>
+          </div> -->
+
+          <!-- Search Topics -->
+          <div class="topics-search-container">
+            <FeatherIcon name="search" class="search-icon-small" />
+            <input 
+              type="text" 
+              v-model="topicsSearchQuery"
+              placeholder="Search topics..."
+              class="topics-search-input"
+            />
+          </div>
+
+          <!-- Topics List with Hierarchy or Fallback -->
+          <div v-if="organizedTopics && organizedTopics.length > 0" class="topics-hierarchy">
+            <div v-for="unit in (topicsSearchQuery ? filteredOrganizedTopics : organizedTopics)" :key="unit.unitName" class="unit-section">
+              <!-- Unit Header -->
+              <div class="unit-header" @click="toggleUnit(unit.unitName)">
+                <FeatherIcon 
+                  :name="expandedUnits[unit.unitName] ? 'chevron-down' : 'chevron-right'" 
+                  class="unit-chevron"
+                />
+                <label class="unit-checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    :checked="isUnitSelected(unit)"
+                    @change="toggleUnitSelection(unit)"
+                    @click.stop
+                    class="topic-checkbox"
+                  />
+                  <span class="unit-title">{{ unit.displayName }}</span>
+                  <span class="unit-count">({{ unit.allTopicsInUnit.length }} topics)</span>
+                </label>
+              </div>
+
+              <!-- Unit Topics -->
+              <div v-if="expandedUnits[unit.unitName]" class="unit-topics">
+                <div v-for="section in unit.sections" :key="section.sectionName || 'main'" class="section-group">
+                  <!-- Section Header (if exists) -->
+                  <div v-if="section.sectionName && section.sectionName !== ''" class="section-header">
+                    <label class="section-checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        :checked="isSectionSelected(section)"
+                        @change="toggleSectionSelection(section)"
+                        @click.stop
+                        class="topic-checkbox"
+                      />
+                      <span class="section-title">{{ section.displayName }}</span>
+                    </label>
+                  </div>
+
+                  <!-- Topic Items -->
+                  <div class="topic-items">
+                    <label 
+                      v-for="topic in section.topics" 
+                      :key="topic.no"
+                      class="topic-item-label"
+                      :class="{ 'subsection-topic': section.sectionName && section.sectionName !== '' }"
+                    >
+                      <input 
+                        type="checkbox" 
+                        v-model="selectedTopicIds"
+                        :value="topic.no"
+                        class="topic-checkbox"
+                      />
+                      <span class="topic-name" :title="topic.originalName">{{ topic.displayName }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- No search results in organized view -->
+            <div v-if="topicsSearchQuery && filteredOrganizedTopics.length === 0" class="no-topics-found">
+              No topics found matching your search
+            </div>
+          </div>
+          
+          <!-- NEW Fallback: Show topics grouped by Unit -->
+          <div v-else-if="props.topics && props.topics.length > 0" class="topics-hierarchy">
+            
+            <!-- This part renders the grouped list -->
+            <div v-if="Object.keys(groupedFallbackTopics).length > 0" class="fallback-topics-list">
+              <p class="fallback-notice">Showing all topics (simplified view):</p>
+              
+              <!-- Loop through each Unit group -->
+              <div v-for="(groupTopics, unitName) in groupedFallbackTopics" :key="unitName" class="unit-group">
+                <h4 class="unit-title">{{ unitName }}</h4>
+                <div class="topic-items">
+                  <!-- Loop through topics within this unit -->
+                  <label v-for="topic in groupTopics" :key="topic.no" class="topic-item-label">
+                    <input 
+                      type="checkbox" 
+                      v-model="selectedTopicIds"
+                      :value="topic.no"
+                      class="topic-checkbox"
+                    />
+                    <span class="topic-name">
+                      {{ formatTopicNameForDisplay(topic.topic_name || topic.topic || `Topic ${topic.no}`) }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <!-- Show this message ONLY if a search is active and yields zero results -->
+            <div v-else-if="topicsSearchQuery" class="no-topics-found">
+              No topics found matching "{{ topicsSearchQuery }}"
+            </div>
+
+          </div>
+          <!-- No topics available -->
+          <div v-else class="no-topics-found">
+            <p>No topics available for this course. Please contact the administrator.</p>
+          </div>
+
+          <!-- Selected Topics Summary -->
+          <div class="selected-topics-summary">
+            <span class="summary-text">
+              {{ selectedTopicIds.length }} topic{{ selectedTopicIds.length !== 1 ? 's' : '' }} selected
+            </span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button @click="closeTopicsModal" class="modal-button secondary">Cancel</button>
+          <button 
+            @click="confirmTopicsSelection" 
+            class="modal-button primary"
+          >
+            Continue {{ selectedTopicIds.length === 0 ? '(No topics selected)' : '' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Confirmation Modal -->
@@ -258,14 +321,17 @@
           <!-- Selected Topics -->
           <div class="submission-section">
             <h4 class="section-title">Selected Course Topics:</h4>
-            <div class="selected-topics-list">
+            <div v-if="selectedTopicIds.length > 0" class="selected-topics-list">
               <span 
-                v-for="topic in selectedTopics" 
-                :key="topic.id"
+                v-for="topic in getSelectedTopicDetails()" 
+                :key="topic.no"
                 class="topic-pill"
               >
-                {{ topic.name }}
+                {{ topic.displayName }}
               </span>
+            </div>
+            <div v-else class="no-topics-selected">
+              No topics selected
             </div>
             <div class="course-completion-status" v-if="isCourseCompleted">
               <FeatherIcon name="check-circle" class="w-4 h-4 text-green-600" />
@@ -339,13 +405,16 @@
         <div class="modal-body">
           <p>{{ errorMessage }}</p>
         </div>
+        <div class="modal-actions">
+          <button @click="closeErrorModal" class="modal-button primary">OK</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
 import { createResource } from 'frappe-ui'
 
@@ -354,6 +423,10 @@ const props = defineProps({
   students: {
     type: Array,
     default: () => []
+  },
+  topics: {
+    type: Array,
+    default: () => [],
   },
   courseInfo: {
     type: Object,
@@ -365,50 +438,19 @@ const props = defineProps({
 const emit = defineEmits(['refresh-data'])
 
 // Local reactive copy of students for manipulation
-const students = ref([...props.students])
+const students = ref([])
 
 // Search functionality
 const searchQuery = ref('')
 
 // Topics functionality
-const showTopicsDropdown = ref(false)
-const selectedTopics = ref([])
+const showTopicsModal = ref(false)
+const selectedTopicIds = ref([])
 const topicsSearchQuery = ref('')
-const topicsError = ref(false)
 const isCourseCompleted = ref(false)
+const expandedUnits = ref({})
 
-// Mock Course Topics Data
-const mockTopics = ref([
-  { id: 1, name: "Introduction to Machine Learning" },
-  { id: 2, name: "Supervised Learning Algorithms" },
-  { id: 3, name: "Neural Networks and Deep Learning" },
-  { id: 4, name: "Unsupervised Learning Techniques" },
-  { id: 5, name: "Natural Language Processing" },
-  { id: 6, name: "Computer Vision Fundamentals" },
-  { id: 7, name: "Reinforcement Learning" },
-  { id: 8, name: "Data Preprocessing and Feature Engineering" },
-  { id: 9, name: "Model Evaluation and Validation" },
-  { id: 10, name: "Ethics in AI and Machine Learning" },
-  { id: 11, name: "Transfer Learning" },
-  { id: 12, name: "Ensemble Methods" },
-  { id: 13, name: "Time Series Analysis" },
-  { id: 14, name: "Clustering Algorithms" },
-  { id: 15, name: "Dimensionality Reduction" }
-])
-
-// Watch for changes in props.students
-watch(() => props.students, (newStudents) => {
-  students.value = [...newStudents]
-  // Process student data
-  students.value.forEach(student => {
-    if (student.status) {
-      student.checked = student.status === 'Present'
-    } else {
-      student.checked = true  // Not marked yet
-    }
-  })
-}, { immediate: true })
-
+// General state
 const isEditMode = ref(false)
 const isSubmitting = ref(false)
 const showConfirmModal = ref(false)
@@ -419,395 +461,337 @@ const successMessage = ref('')
 const errorTitle = ref('')
 const errorMessage = ref('')
 
-// Computed properties
-// Filtered students based on search query
-const filteredStudents = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return students.value
-  }
-  
-  const query = searchQuery.value.toLowerCase().trim()
-  
-  return students.value.filter(student => {
-    const studentName = (student.student_name || '').toLowerCase()
-    const rollNumber = (student.custom_student_id || student.student || '').toLowerCase()
+// Watch for changes in props.students
+watch(() => props.students, (newStudents) => {
+  students.value = (newStudents || []).map(student => {
+    let checked = true; // Default to present
+    if (student.status) {
+      checked = student.status === 'Present';
+    }
+    return { ...student, checked };
+  });
+}, { immediate: true, deep: true })
+
+
+// --- HELPER FUNCTIONS ---
+
+// Helper function to format topic name for display (remains the same)
+const formatTopicNameForDisplay = (topicName) => {
+    if (typeof topicName !== 'string') return '';
+    const lastHyphenIndex = topicName.lastIndexOf('-');
+    if (lastHyphenIndex !== -1 && lastHyphenIndex < topicName.length - 1) {
+        return topicName.substring(lastHyphenIndex + 1);
+    }
+    return topicName;
+}
+
+
+// --- HIERARCHICAL TOPICS LOGIC (CORRECTED) ---
+
+/**
+ * CORRECTED: Replaces the old function entirely.
+ * This function robustly parses topics into a hierarchical structure using regular expressions.
+ */
+const organizeTopics = (topicsList) => {
+  if (!topicsList || topicsList.length === 0) return [];
+
+  const units = {};
+
+  // Regex to reliably find the Unit, Section, and Title from a topic name
+  const topicRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-\d+)?-(.*)$/;
+
+  topicsList.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const match = topicName.match(topicRegex);
+
+    if (!match) {
+      // This topic doesn't fit the detailed pattern, so we skip it or handle as a general topic.
+      // For this case, we'll log a warning and skip to prevent errors.
+      console.warn(`Skipping topic with unexpected format: ${topicName}`);
+      return; 
+    }
     
-    return studentName.includes(query) || rollNumber.includes(query)
-  })
-})
+    const unitKey = match[1]; // e.g., "UNIT-I"
+    const sectionKey = match[2] || 'main'; // e.g., "A" or the default 'main'
+    const displayName = match[3]; // e.g., "Characteristics (Database Vs File System)"
+    const unitNumber = unitKey.split('-')[1];
 
-// Filtered topics based on search query
-const filteredTopics = computed(() => {
-  if (!topicsSearchQuery.value.trim()) {
-    return mockTopics.value
+    // Initialize the Unit object if it's the first time we've seen it
+    if (!units[unitKey]) {
+      units[unitKey] = {
+        unitName: unitKey,
+        displayName: `Unit ${unitNumber}`,
+        allTopicsInUnit: [], // A master list for the "Select All" checkbox for the unit
+        sections: {}
+      };
+    }
+
+    // Initialize the Section object within the unit if it's the first time
+    if (!units[unitKey].sections[sectionKey]) {
+      units[unitKey].sections[sectionKey] = {
+        sectionName: sectionKey,
+        displayName: sectionKey === 'main' ? 'General' : `Section ${sectionKey}`,
+        topics: [] // This is a dedicated array ONLY for this section's topics
+      };
+    }
+    
+    const formattedTopic = { ...topic, originalName: topicName, displayName };
+    
+    // Add the topic to the correct, isolated section array
+    units[unitKey].sections[sectionKey].topics.push(formattedTopic);
+    // Also add it to the unit's master list
+    units[unitKey].allTopicsInUnit.push(formattedTopic);
+  });
+  
+  // Convert the units object into a sorted array for the template
+  const romanToNum = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+  return Object.values(units)
+    .sort((a, b) => (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0))
+    .map(unit => ({
+      ...unit,
+      sections: Object.values(unit.sections)
+        .filter(section => section.topics.length > 0)
+        .sort((a, b) => a.sectionName.localeCompare(b.sectionName))
+    }))
+    .filter(unit => unit.allTopicsInUnit.length > 0);
+};
+
+// Computed property for organized topics
+const organizedTopics = computed(() => {
+  // Check if any topic name seems to follow the hierarchical pattern.
+  const hasHierarchicalTopics = (props.topics || []).some(t => (t.topic_name || t.topic || "").startsWith('UNIT-'));
+  if (!hasHierarchicalTopics) {
+    return []; // Don't try to organize if format is wrong, let fallback handle it.
   }
+  return organizeTopics(props.topics);
+});
+
+// Computed property for filtered organized topics based on search
+const filteredOrganizedTopics = computed(() => {
+  if (!topicsSearchQuery.value.trim()) return organizedTopics.value;
   
-  const query = topicsSearchQuery.value.toLowerCase().trim()
+  const query = topicsSearchQuery.value.toLowerCase();
   
-  return mockTopics.value.filter(topic => 
-    topic.name.toLowerCase().includes(query)
-  )
-})
+  return organizedTopics.value.map(unit => {
+    const filteredSections = unit.sections
+      .map(section => ({
+        ...section,
+        topics: section.topics.filter(topic => topic.displayName.toLowerCase().includes(query))
+      }))
+      .filter(section => section.topics.length > 0);
+    
+    return { ...unit, sections: filteredSections };
+  }).filter(unit => unit.sections.length > 0);
+});
 
-// Updated computed properties for modal
-const editableStudents = computed(() => students.value.filter(s => !s.status))
-const editablePresentCount = computed(() => editableStudents.value.filter(s => s.checked === true).length)
-const editableAbsentCount = computed(() => editableStudents.value.filter(s => s.checked === false).length)
-const editableUnmarkedCount = computed(() => editableStudents.value.filter(s => s.checked === null).length)
 
-// Already submitted students
-const alreadyPresentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Present').length)
-const alreadyAbsentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Absent').length)
+// --- FALLBACK TOPICS LOGIC (CORRECTED) ---
 
-// Total counts (current submission + already submitted)
-const totalPresentCount = computed(() => editablePresentCount.value + alreadyPresentCount.value)
-const totalAbsentCount = computed(() => editableAbsentCount.value + alreadyAbsentCount.value)
+/**
+ * CORRECTED: This is now a 'computed' property.
+ * Groups props.topics by Unit and filters based on the search query.
+ */
+const groupedFallbackTopics = computed(() => {
+  const groups = {};
+  const query = topicsSearchQuery.value.trim().toLowerCase();
 
-// Update the existing computed properties to only consider editable students
-const presentCount = computed(() => editablePresentCount.value)
-const absentCount = computed(() => editableAbsentCount.value)
-const unmarkedCount = computed(() => editableUnmarkedCount.value)
+  if (!props.topics || props.topics.length === 0) return groups;
 
-// Attendance status checks
-const studentsWithStatus = computed(() => students.value.filter(s => s.status))
-const studentsWithoutStatus = computed(() => students.value.filter(s => !s.status))
-const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0)
-const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && studentsWithoutStatus.value.length > 0)
+  props.topics.forEach(topic => {
+    const displayName = formatTopicNameForDisplay(topic.topic_name || topic.topic);
+    if (query && !displayName.toLowerCase().includes(query)) return;
 
-// Submit button state - disable if there are unmarked students, all have status, or no topics selected
-const isSubmitDisabled = computed(() => 
-  allStudentsHaveStatus.value || 
-  isSubmitting.value || 
-  unmarkedCount.value > 0 ||
-  selectedTopics.value.length === 0
-)
+    const unitMatch = (topic.topic_name || topic.topic || '').match(/^UNIT-([IVXLCDM]+)/);
+    const unitKey = unitMatch ? `Unit ${unitMatch[1]}` : 'Other Topics';
 
-// Helper function to check if student is disabled
-const isStudentDisabled = (student) => {
-  return !!student.status
-}
+    if (!groups[unitKey]) groups[unitKey] = [];
+    
+    groups[unitKey].push({ ...topic, displayName });
+  });
 
-// Helper function to get percentage color class
+  return groups;
+});
+
+
+// --- ATTENDANCE COMPUTED PROPERTIES ---
+
+const filteredStudents = computed(() => {
+  if (!searchQuery.value.trim()) return students.value;
+  const query = searchQuery.value.toLowerCase().trim();
+  return students.value.filter(s => 
+    (s.student_name || '').toLowerCase().includes(query) ||
+    (s.custom_student_id || s.student || '').toLowerCase().includes(query)
+  );
+});
+
+const studentsWithoutStatus = computed(() => students.value.filter(s => !s.status));
+const studentsWithStatus = computed(() => students.value.filter(s => s.status));
+const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0);
+const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && !allStudentsHaveStatus.value);
+
+const unmarkedCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === null).length);
+const isSubmitDisabled = computed(() => allStudentsHaveStatus.value || isSubmitting.value || unmarkedCount.value > 0);
+
+// Counts for confirmation modal
+const editablePresentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === true).length);
+const editableAbsentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === false).length);
+const alreadyPresentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Present').length);
+const alreadyAbsentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Absent').length);
+const totalPresentCount = computed(() => editablePresentCount.value + alreadyPresentCount.value);
+const totalAbsentCount = computed(() => editableAbsentCount.value + alreadyAbsentCount.value);
+
+
+// --- METHODS ---
+
+const isStudentDisabled = (student) => !!student.status;
+
 const getPercentageClass = (percentage) => {
-  if (percentage >= 85) return 'percentage-good'
-  if (percentage >= 75) return 'percentage-average'
-  return 'percentage-poor'
-}
+  if (percentage >= 85) return 'percentage-good';
+  if (percentage >= 75) return 'percentage-average';
+  return 'percentage-poor';
+};
 
-// Search methods
-const clearSearch = () => {
-  searchQuery.value = ''
-}
+const clearSearch = () => { searchQuery.value = ''; };
 
-// Topics methods
-const toggleTopicsDropdown = () => {
-  showTopicsDropdown.value = !showTopicsDropdown.value
-  if (showTopicsDropdown.value) {
-    topicsSearchQuery.value = ''
-    topicsError.value = false
-  }
-}
-
-const isTopicSelected = (topic) => {
-  return selectedTopics.value.some(selected => selected.id === topic.id)
-}
-
-const toggleTopicSelection = (topic) => {
-  const index = selectedTopics.value.findIndex(selected => selected.id === topic.id)
-  if (index > -1) {
-    selectedTopics.value.splice(index, 1)
-  } else {
-    selectedTopics.value.push(topic)
-  }
-  topicsError.value = false
-}
-
-const removeSelectedTopic = (topic) => {
-  const index = selectedTopics.value.findIndex(selected => selected.id === topic.id)
-  if (index > -1) {
-    selectedTopics.value.splice(index, 1)
-  }
-}
-
-// Close dropdown when clicking outside
-const closeTopicsDropdown = (event) => {
-  if (!event.target.closest('.topics-dropdown')) {
-    showTopicsDropdown.value = false
-  }
-}
-
-// Methods
 const toggleStudentAttendance = (student) => {
-  if (!isStudentDisabled(student)) {
-    if (student.checked === null) {
-      student.checked = true  // null → present
-    } else if (student.checked === true) {
-      student.checked = false // present → absent
-    } else {
-      student.checked = null  // absent → null
-    }
-  }
-}
+  if (isStudentDisabled(student)) return;
+  if (student.checked === null) student.checked = true;
+  else if (student.checked === true) student.checked = false;
+  else student.checked = true; // Cycle from absent back to present
+};
 
-const markAllAsPresent = () => {
-  students.value.forEach(student => {
-    if (!isStudentDisabled(student)) {
-      student.checked = true
-    }
-  })
-}
+const markAllAsPresent = () => studentsWithoutStatus.value.forEach(s => s.checked = true);
+const markAllAsAbsent = () => studentsWithoutStatus.value.forEach(s => s.checked = false);
 
-const markAllAsAbsent = () => {
-  students.value.forEach(student => {
-    if (!isStudentDisabled(student)) {
-      student.checked = false
-    }
-  })
-}
+// Topic Modal Methods
+const openTopicsModal = () => {
+  if (unmarkedCount.value > 0) return;
+  showTopicsModal.value = true;
+};
+const closeTopicsModal = () => { showTopicsModal.value = false; };
+const confirmTopicsSelection = () => {
+  showTopicsModal.value = false;
+  showConfirmModal.value = true;
+};
+const closeConfirmModal = () => { showConfirmModal.value = false; };
 
-const resetAttendance = () => {
-  students.value.forEach(student => {
-    if (!isStudentDisabled(student)) {
-      student.checked = null  // Reset to unmarked
+const toggleUnit = (unitName) => { expandedUnits.value[unitName] = !expandedUnits.value[unitName]; };
+const isUnitSelected = (unit) => {
+    if (!unit.allTopicsInUnit || unit.allTopicsInUnit.length === 0) return false;
+    return unit.allTopicsInUnit.every(topic => selectedTopicIds.value.includes(topic.no));
+};
+const toggleUnitSelection = (unit) => {
+  const shouldSelect = !isUnitSelected(unit);
+  unit.allTopicsInUnit.forEach(topic => {
+    const index = selectedTopicIds.value.indexOf(topic.no);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(topic.no);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
     }
-  })
-}
+  });
+};
+
+const isSectionSelected = (section) => {
+  if (!section.topics || section.topics.length === 0) return false;
+  return section.topics.every(topic => selectedTopicIds.value.includes(topic.no));
+};
+const toggleSectionSelection = (section) => {
+  const isSelected = isSectionSelected(section);
+  section.topics.forEach(topic => {
+    const index = selectedTopicIds.value.indexOf(topic.no);
+    if (!isSelected && index === -1) {
+      selectedTopicIds.value.push(topic.no);
+    } else if (!isSelected && index > -1) { // This line had a typo in your original logic
+        // This case should not happen, but for safety: do nothing
+    } else if (isSelected && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
+  });
+};
+
+const getSelectedTopicDetails = () => {
+  return (props.topics || [])
+    .filter(t => selectedTopicIds.value.includes(t.no))
+    .map(t => ({ ...t, displayName: formatTopicNameForDisplay(t.topic_name || t.topic) }));
+};
+
+
+// --- SUBMISSION LOGIC ---
 
 const submitAttendance = () => {
-  // Check if topics are selected
-  if (selectedTopics.value.length === 0) {
-    topicsError.value = true
-    return
-  }
+  if (isSubmitDisabled.value) return;
+  openTopicsModal();
+};
+
+const confirmSubmit = () => {
+  closeConfirmModal();
+  isSubmitting.value = true; // Set submitting state immediately
+
+  // Filter out students who already have a status
+  const studentsToSubmit = students.value.filter(s => !s.status);
   
-  // Check if all students are marked
-  if (unmarkedCount.value > 0) {
-    return // Don't show modal if there are unmarked students
-  }
-  showConfirmModal.value = true
-}
-
-const closeConfirmModal = () => {
-  showConfirmModal.value = false
-}
-
-const closeSuccessModal = () => {
-  showSuccessModal.value = false
-  // Emit event to parent to refresh data
-  emit('refresh-data')
-}
-
-const closeErrorModal = () => {
-  showErrorModal.value = false
-}
+  // Prepare lists of present and absent students
+  const studentsPresent = studentsToSubmit.filter(s => s.checked === true);
+  const studentsAbsent = studentsToSubmit.filter(s => s.checked === false);
+  
+  // --- NEW LOGIC ---
+  // Iterate over ALL available topics. For each one, check if it was selected.
+  const taughtTopics = (props.topics || []).map(topic => {
+    return {
+      topic: topic.topic || topic.topic_name, // The full original topic name
+      completed: selectedTopicIds.value.includes(topic.no) // Set to `true` if selected, `false` otherwise
+    };
+  });
+  
+  // Assemble the final data object with the comprehensive topic list
+  const requestData = {
+    students_present: JSON.stringify(studentsPresent.map(s => ({ student: s.student, student_name: s.student_name }))),
+    students_absent: JSON.stringify(studentsAbsent.map(s => ({ student: s.student, student_name: s.student_name }))),
+    student_group: props.courseInfo.studentGroup || '',
+    course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
+    taught_topics: JSON.stringify(taughtTopics), 
+    course_completed: isCourseCompleted.value
+  };
+  
+  // Pass the data object directly to the submit method
+  submitAttendanceResource.submit(requestData);
+};
 
 const submitAttendanceResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.mark_attendances',
   method: 'POST',
-  onSuccess: (result) => {
-    console.log('API response received:', result)
-    console.log('Resource data:', submitAttendanceResource.data)
-    
-    // Use the resource data if result is undefined
-    const responseData = result || submitAttendanceResource.data
-    console.log('Using response data:', responseData)
-    
-    // Check if there's an exception in the response (Frappe error handling)
-    if (responseData && (responseData.exception || responseData.exc_type)) {
-      console.error('API returned an exception:', responseData.exception)
-      
-      // Parse server messages for error details
-      if (responseData._server_messages) {
-        try {
-          const serverMessages = JSON.parse(responseData._server_messages)
-          if (serverMessages.length > 0) {
-            const message = JSON.parse(serverMessages[0])
-            console.log('Parsed error message:', message)
-            
-            if (message.title === 'Duplicate Entry' || responseData.exception?.includes('already exists')) {
-              errorTitle.value = 'Duplicate Entry'
-              errorMessage.value = message.message?.replace(/<[^>]*>/g, '') || 'Attendance record already exists for some students in this session.'
-            } else {
-              errorTitle.value = message.title || 'Error'
-              errorMessage.value = message.message?.replace(/<[^>]*>/g, '') || 'An error occurred while submitting attendance.'
-            }
-          }
-        } catch (parseError) {
-          console.warn('Could not parse error server messages:', parseError)
-          errorTitle.value = 'Error'
-          errorMessage.value = responseData.exception || 'An error occurred while submitting attendance.'
-        }
-      } else {
-        errorTitle.value = 'Error'
-        errorMessage.value = responseData.exception || 'An error occurred while submitting attendance.'
-      }
-      
-      showErrorModal.value = true
-      isSubmitting.value = false
-      return
-    }
-    
-    // Success case - no exception present
-    console.log('Attendance submitted successfully')
-    
-    // Parse server messages if present - check both result and responseData
-    const serverMessages = responseData?._server_messages || result?._server_messages
-    if (serverMessages) {
-      try {
-        // Parse the outer JSON string first
-        const parsedMessages = JSON.parse(serverMessages)
-        console.log('Parsed server messages:', parsedMessages)
-        
-        if (parsedMessages.length > 0) {
-          // Parse the inner JSON string
-          const message = JSON.parse(parsedMessages[0])
-          console.log('Parsed message:', message)
-          
-          successTitle.value = message.title || 'Success'
-          successMessage.value = message.message || 'Attendance has been marked successfully.'
-        } else {
-          successTitle.value = 'Success'
-          successMessage.value = 'Attendance has been marked successfully.'
-        }
-      } catch (parseError) {
-        console.warn('Could not parse server messages:', parseError)
-        console.warn('Raw _server_messages:', serverMessages)
-        successTitle.value = 'Success'
-        successMessage.value = 'Attendance has been marked successfully.'
-      }
-    } else {
-      successTitle.value = 'Success'
-      successMessage.value = 'Attendance has been marked successfully.'
-    }
-    
-    // Clear auto-save data on successful submission
-    localStorage.removeItem('attendance_draft')
-    
-    // Show success modal
-    showSuccessModal.value = true
-    isSubmitting.value = false
+  // The 'makeRequest' property has been removed from here.
+  onSuccess: () => {
+    successTitle.value = 'Success';
+    successMessage.value = 'Attendance has been marked successfully.';
+    showSuccessModal.value = true;
   },
-  onError: (error) => {
-    console.error('Network/Resource error submitting attendance:', error)
-    console.error('Error details:', error)
-    
-    if (error.message?.includes('Duplicate') || error.message?.includes('already exists')) {
-      errorTitle.value = 'Duplicate Entry'
-      errorMessage.value = 'Attendance record already exists for some students in this session.'
-    } else {
-      errorTitle.value = 'Error'
-      errorMessage.value = error.message || 'Failed to submit attendance. Please try again.'
-    }
-    
-    showErrorModal.value = true
-    isSubmitting.value = false
-  }
-})
+  onError: (err) => {
+    errorTitle.value = 'Submission Failed';
+    errorMessage.value = err.message || 'An unknown error occurred.';
+    showErrorModal.value = true;
+  },
+  onFinish: () => { isSubmitting.value = false; }
+});
 
-// Update your confirmSubmit method
-const confirmSubmit = () => {
-  showConfirmModal.value = false
-  isSubmitting.value = true
-  
-  // Filter out students who already have status (exclude from submission)
-  const editableStudents = students.value.filter(s => !s.status)
-  
-  // Prepare data for submission - only include students without existing status
-  const studentsPresent = editableStudents.filter(s => s.checked === true)
-  const studentsAbsent = editableStudents.filter(s => s.checked === false)
-  
-  // Prepare the data in the required format
-  const requestData = {
-    students_present: JSON.stringify(studentsPresent.map(student => ({
-      student: student.student,
-      student_name: student.student_name,
-      group_roll_number: student.group_roll_number,
-      disabled: false,
-      checked: true
-    }))),
-    students_absent: JSON.stringify(studentsAbsent.map(student => ({
-      student: student.student,
-      student_name: student.student_name,
-      group_roll_number: student.group_roll_number,
-      disabled: false,
-      checked: false
-    }))),
-    student_group: props.courseInfo.studentGroup || '',
-    course_schedule: props.courseInfo.allScheduleId || props.courseInfo.scheduleId,
-    topics: JSON.stringify(selectedTopics.value.map(topic => ({
-      id: topic.id,
-      name: topic.name
-    }))),
-    course_completed: isCourseCompleted.value
-  }
-  
-  console.log('Submitting attendance with data:', requestData)
-  
-  // Submit using the resource
-  submitAttendanceResource.submit(requestData)
-}
+const closeSuccessModal = () => {
+  showSuccessModal.value = false;
+  emit('refresh-data');
+};
+const closeErrorModal = () => { showErrorModal.value = false; };
 
-// Optional: Auto-save functionality
-const autoSave = () => {
-  // Save current state to localStorage or similar
-  const attendanceState = {
-    courseScheduleId: props.courseInfo.scheduleId,
-    students: students.value.map(s => ({
-      student: s.student,
-      checked: s.checked
-    })),
-    selectedTopics: selectedTopics.value,
-    isCourseCompleted: isCourseCompleted.value
-  }
-  localStorage.setItem('attendance_draft', JSON.stringify(attendanceState))
-}
-
-// Optional: Load auto-saved data
-const loadAutoSave = () => {
-  try {
-    const saved = localStorage.getItem('attendance_draft')
-    if (saved) {
-      const data = JSON.parse(saved)
-      if (data.courseScheduleId === props.courseInfo.scheduleId) {
-        // Restore saved state for this course
-        data.students.forEach(savedStudent => {
-          const student = students.value.find(s => s.student === savedStudent.student)
-          if (student && !student.status) {
-            student.checked = savedStudent.checked
-          }
-        })
-        
-        // Restore selected topics and course completion status
-        if (data.selectedTopics) {
-          selectedTopics.value = data.selectedTopics
-        }
-        if (data.isCourseCompleted !== undefined) {
-          isCourseCompleted.value = data.isCourseCompleted
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error loading auto-save:', error)
-  }
-}
-
-// Watch for changes and auto-save
-watch([students, selectedTopics, isCourseCompleted], autoSave, { deep: true })
 
 onMounted(() => {
-  loadAutoSave()
-  // Add event listener for closing topics dropdown when clicking outside
-  document.addEventListener('click', closeTopicsDropdown)
-})
-
-// Clean up event listeners
-onBeforeUnmount(() => {
-  document.removeEventListener('click', closeTopicsDropdown)
-})
+  // Initialize expanded state for the first unit
+  if (organizedTopics.value.length > 0) {
+    expandedUnits.value[organizedTopics.value[0].unitName] = true;
+  }
+});
 </script>
 
 <style scoped>
-/* Include all the existing styles from the previous attendance component */
+/* Base styles */
 .attendance-page {
   max-width: 100%;
   margin: 0 auto;
@@ -906,278 +890,6 @@ onBeforeUnmount(() => {
   padding: 1rem;
 }
 
-/* Topics Selection Styles */
-.topics-section {
-  margin-bottom: 1rem;
-}
-
-.topics-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.topics-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #374151;
-  margin: 0;
-}
-
-.course-completion-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.completion-checkbox {
-  opacity: 0;
-  position: absolute;
-  width: 16px;
-  height: 16px;
-}
-
-.completion-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: #374151;
-  font-weight: 500;
-}
-
-.checkbox-icon {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #d1d5db;
-  border-radius: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  background: white;
-}
-
-.completion-checkbox:checked + .completion-label .checkbox-icon {
-  background: #10b981;
-  border-color: #10b981;
-}
-
-.completion-label:hover .checkbox-icon {
-  border-color: #9ca3af;
-}
-
-.required-asterisk {
-  color: #ef4444;
-  margin-left: 0.25rem;
-}
-
-.topics-dropdown {
-  position: relative;
-}
-
-.topics-selector {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 3rem;
-}
-
-.topics-selector:hover {
-  border-color: #9ca3af;
-}
-
-.topics-selector.open {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.topics-selector.error {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-}
-
-.selected-topics {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.placeholder {
-  color: #9ca3af;
-  font-size: 0.9rem;
-}
-
-.topics-display {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.topic-tag {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: #3b82f6;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.remove-topic {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0.125rem;
-  border-radius: 0.125rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-}
-
-.remove-topic:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.dropdown-icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #6b7280;
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-.dropdown-icon.rotated {
-  transform: rotate(180deg);
-}
-
-.topics-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 2px solid #d1d5db;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  max-height: 300px;
-  overflow: hidden;
-  margin-top: 0.25rem;
-}
-
-.dropdown-search {
-  position: relative;
-  padding: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.search-icon-small {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0.875rem;
-  height: 0.875rem;
-  color: #9ca3af;
-}
-
-.dropdown-search-input {
-  width: 100%;
-  padding: 0.5rem 0.5rem 0.5rem 2rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.dropdown-search-input:focus {
-  border-color: #3b82f6;
-}
-
-.topics-list {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.topic-option {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.topic-option:hover {
-  background: #f9fafb;
-}
-
-.topic-option:last-child {
-  border-bottom: none;
-}
-
-.topic-option.selected {
-  background: #eff6ff;
-}
-
-.topic-checkbox {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid #d1d5db;
-  border-radius: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.topic-option.selected .topic-checkbox {
-  background: #3b82f6;
-  border-color: #3b82f6;
-}
-
-.topic-name {
-  font-size: 0.9rem;
-  color: #374151;
-  flex: 1;
-}
-
-.no-topics {
-  padding: 1rem;
-  text-align: center;
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.error-message {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 0.375rem;
-  color: #dc2626;
-  font-size: 0.875rem;
-}
-
 .bulk-actions {
   display: flex;
   gap: 0.75rem;
@@ -1220,7 +932,7 @@ onBeforeUnmount(() => {
   background: #dc2626;
 }
 
-/* Search Section Styles */
+/* Search Section */
 .search-section {
   margin-top: 0;
 }
@@ -1256,10 +968,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.search-input::placeholder {
-  color: #9ca3af;
-}
-
 .clear-search-button {
   position: absolute;
   right: 0.5rem;
@@ -1293,6 +1001,7 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+/* Students List */
 .students-list {
   margin: 0 1rem;
   background: white;
@@ -1404,7 +1113,7 @@ onBeforeUnmount(() => {
   font-size: 0.8rem;
 }
 
-/* Student Percentage Display with Color Coding */
+/* Student Percentage Display */
 .student-percentage {
   font-size: 0.85rem;
   font-weight: 600;
@@ -1457,6 +1166,7 @@ onBeforeUnmount(() => {
   background: #ef4444;
 }
 
+/* Submit Section */
 .submit-section {
   padding: 1rem;
   position: sticky;
@@ -1487,6 +1197,7 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1507,6 +1218,14 @@ onBeforeUnmount(() => {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   max-width: 400px;
   width: 100%;
+}
+
+.modal-content.topics-modal {
+  max-width: 600px;
+  max-height: 85vh;
+  min-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-content.success {
@@ -1533,16 +1252,6 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-.error-icon {
-  display: flex;
-  align-items: center;
-}
-
-.success-icon {
-  display: flex;
-  align-items: center;
-}
-
 .close-button {
   padding: 0.25rem;
   border: none;
@@ -1566,14 +1275,245 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
 }
 
-.modal-body p:last-child {
-  margin-bottom: 0;
+/* Topics Modal Specific Styles */
+.topics-modal-body {
+  overflow-y: auto;
+  /* max-height: 60vh; */
 }
 
+.topics-instruction {
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.course-completion-section {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.course-completion-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.course-checkbox {
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-text {
+  font-weight: 500;
+}
+
+.topics-search-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.search-icon-small {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #9ca3af;
+}
+
+.topics-search-input {
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 2rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.topics-search-input:focus {
+  border-color: #3b82f6;
+}
+
+/* Topics Hierarchy */
+.topics-hierarchy {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.unit-section {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.unit-section:last-child {
+  border-bottom: none;
+}
+
+.unit-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.unit-header:hover {
+  background: #f3f4f6;
+}
+
+.unit-chevron {
+  width: 1rem;
+  height: 1rem;
+  color: #6b7280;
+  margin-right: 0.5rem;
+  transition: transform 0.2s;
+}
+
+.unit-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  cursor: pointer;
+}
+
+.unit-title {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.unit-count {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.unit-topics {
+  background: white;
+  padding: 0.5rem 0;
+}
+
+.section-group {
+  border-top: 1px solid #f3f4f6;
+}
+
+.section-group:first-child {
+  border-top: none;
+}
+
+.section-header {
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  background: #fafbfc;
+}
+
+.section-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.section-title {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.topic-items {
+  padding: 0.25rem 0;
+}
+
+.unit-group {
+  margin-bottom: 1.25rem;
+}
+.unit-title {
+  font-size: 1rem;
+  font-weight: bold;
+  /* margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #e0e0e0; */
+}
+.topic-item-label {
+  display: block; /* Makes each checkbox appear on a new line */
+  padding: 4px 0;
+}
+
+.topic-item-label:hover {
+  background: #f9fafb;
+}
+
+.topic-item-label.subsection-topic {
+  padding-left: 2rem;
+}
+
+.topic-checkbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.topic-name {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.4;
+  padding-left: 5px;
+}
+
+.no-topics-found {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.selected-topics-summary {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #eff6ff;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+.summary-text {
+  font-size: 0.9rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+/* Selected Topics List */
 .selected-topics-list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.fallback-topics-list {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.fallback-notice {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.no-topics-selected {
+  color: #6b7280;
+  font-style: italic;
+  font-size: 0.9rem;
   margin-top: 0.5rem;
 }
 
@@ -1637,16 +1577,19 @@ onBeforeUnmount(() => {
   background: #2563eb;
 }
 
-.submission-section,
-.already-submitted-section,
-.total-section .section-title {
-  color: #475569;
+.modal-button.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.modal-body p {
-  margin: 0.25rem 0;
+/* Success and Error Icons */
+.error-icon,
+.success-icon {
+  display: flex;
+  align-items: center;
 }
 
+/* Submission Sections in Confirmation Modal */
 .submission-section,
 .already-submitted-section,
 .total-section {
@@ -1674,7 +1617,7 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   font-weight: 600;
   color: #374151;
-  margin: 0 0 0.5rem 0;
+  /* margin: 0 0 0.5rem 0; */
 }
 
 .submission-section .section-title {
@@ -1687,9 +1630,5 @@ onBeforeUnmount(() => {
 
 .total-section .section-title {
   color: #475569;
-}
-
-.modal-body p {
-  margin: 0.25rem 0;
 }
 </style>
