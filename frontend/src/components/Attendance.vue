@@ -202,7 +202,7 @@
                     class="topic-checkbox"
                   />
                   <span class="unit-title">{{ unit.displayName }}</span>
-                  <span class="unit-count">({{ unit.allTopicsInUnit.length }} topics)</span>
+                  <span class="unit-count">({{ unit.leafTopicsInUnit.length }} topics)</span>
                 </label>
               </div>
 
@@ -227,6 +227,9 @@
                           class="topic-checkbox"
                         />
                         <span class="section-title">{{ section.displayName }}</span>
+                        <span class="section-count" v-if="section.leafTopicsInSection.length > 0">
+                          ({{ section.leafTopicsInSection.length }})
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -565,6 +568,30 @@ const toggleSubsectionExpansion = (unitName, sectionName, subsectionName) => {
 }
 
 
+// Helper function to count only leaf topics (non-parent topics)
+const countLeafTopics = (topics) => {
+  return topics.filter(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const match = topicName.match(/^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/);
+    
+    if (!match) return true; // Include non-standard topics
+    
+    const unitKey = match[1];
+    const sectionKey = match[2];
+    const subsectionKey = match[3];
+    
+    // Exclude unit-level parents (UNIT-I-Database Concepts)
+    if (!sectionKey && !subsectionKey) return false;
+    
+    // Exclude section-level parents (UNIT-I-A-Introduction to Database Concepts)
+    if (sectionKey && !subsectionKey) return false;
+    
+    // Include subsection-level topics and below (UNIT-I-A-1-Characteristics, etc.)
+    return true;
+  }).length;
+};
+
+// Updated organizeTopics function with correct leaf topic counts
 const organizeTopics = (topicsList) => {
   if (!topicsList || topicsList.length === 0) return [];
   
@@ -592,6 +619,7 @@ const organizeTopics = (topicsList) => {
           displayName: `Unit ${unitNumber}`, // Will be updated if we find a unit parent
           topicId: null,
           allTopicsInUnit: [],
+          leafTopicsInUnit: [], // NEW: Track only leaf topics
           sections: {}
         };
       }
@@ -618,12 +646,20 @@ const organizeTopics = (topicsList) => {
 
     if (!units[unitKey]) return; // Skip if unit doesn't exist
 
-    // Add to unit's all topics
-    units[unitKey].allTopicsInUnit.push({
+    const topicData = {
       ...topic,
       originalName: topicName,
       displayName: displayName
-    });
+    };
+
+    // Add to unit's all topics
+    units[unitKey].allTopicsInUnit.push(topicData);
+
+    // Add to leaf topics only if it's not a parent topic
+    const isParentTopic = (!sectionKey && !subsectionKey) || (sectionKey && !subsectionKey);
+    if (!isParentTopic) {
+      units[unitKey].leafTopicsInUnit.push(topicData);
+    }
 
     // Handle different hierarchy levels
     if (!sectionKey) {
@@ -638,7 +674,8 @@ const organizeTopics = (topicsList) => {
         displayName: '',
         topicId: null,
         subsections: {},
-        directTopics: []
+        directTopics: [],
+        leafTopicsInSection: [] // NEW: Track only leaf topics in section
       };
     }
 
@@ -650,6 +687,9 @@ const organizeTopics = (topicsList) => {
       section.topicId = topic.no;
     } else {
       // This has a subsection (e.g., "UNIT-I-A-1-Characteristics")
+      
+      // Add to section's leaf topics
+      section.leafTopicsInSection.push(topicData);
       
       // Initialize subsection if doesn't exist
       if (!section.subsections[subsectionKey]) {
@@ -666,7 +706,6 @@ const organizeTopics = (topicsList) => {
   });
 
   // Third pass: Look for child topics under numbered subsections
-  // Pattern: UNIT-I-A-1-1-xxx, UNIT-I-A-1-2-xxx (children of UNIT-I-A-1-xxx)
   topicsList.forEach(topic => {
     const topicName = topic.topic_name || topic.topic || '';
     const childMatch = topicName.match(/^(UNIT-[IVX]+)-([A-Z])-(\d+)-(\d+)-(.*)$/);
@@ -679,11 +718,17 @@ const organizeTopics = (topicsList) => {
       const displayName = childMatch[5];
       
       if (units[unitKey]?.sections[sectionKey]?.subsections[subsectionKey]) {
-        units[unitKey].sections[sectionKey].subsections[subsectionKey].topics.push({
+        const childTopic = {
           ...topic,
           originalName: topicName,
           displayName: displayName
-        });
+        };
+        
+        units[unitKey].sections[sectionKey].subsections[subsectionKey].topics.push(childTopic);
+        
+        // Add to leaf topics counts
+        units[unitKey].leafTopicsInUnit.push(childTopic);
+        units[unitKey].sections[sectionKey].leafTopicsInSection.push(childTopic);
       }
     }
   });
