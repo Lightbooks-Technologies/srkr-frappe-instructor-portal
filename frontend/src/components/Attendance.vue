@@ -187,18 +187,18 @@
           <!-- Topics List with Hierarchy or Fallback -->
           <div v-if="organizedTopics && organizedTopics.length > 0" class="topics-hierarchy">
             <div v-for="unit in (topicsSearchQuery ? filteredOrganizedTopics : organizedTopics)" :key="unit.unitName" class="unit-section">
+              
               <!-- Unit Header -->
               <div class="unit-header" @click="toggleUnit(unit.unitName)">
                 <FeatherIcon 
                   :name="expandedUnits[unit.unitName] ? 'chevron-down' : 'chevron-right'" 
                   class="unit-chevron"
                 />
-                <label class="unit-checkbox-label">
+                <label class="unit-checkbox-label" @click.stop>
                   <input 
                     type="checkbox" 
                     :checked="isUnitSelected(unit)"
                     @change="toggleUnitSelection(unit)"
-                    @click.stop
                     class="topic-checkbox"
                   />
                   <span class="unit-title">{{ unit.displayName }}</span>
@@ -206,45 +206,93 @@
                 </label>
               </div>
 
-              <!-- Unit Topics -->
-              <div v-if="expandedUnits[unit.unitName]" class="unit-topics">
-                <div v-for="section in unit.sections" :key="section.sectionName || 'main'" class="section-group">
-                  <!-- Section Header (if exists) -->
-                  <div v-if="section.displayName" class="section-header">
-                    <label class="section-checkbox-label">
-                      <input 
-                        type="checkbox" 
-                        :checked="isSectionSelected(section)"
-                        @change="toggleSectionSelection(section)"
-                        @click.stop
-                        class="topic-checkbox"
+              <!-- Unit Content -->
+              <div v-if="expandedUnits[unit.unitName]" class="unit-content">
+                
+                <!-- Sections -->
+                <div v-for="section in unit.sections" :key="section.sectionName" class="section-group">
+                  
+                  <!-- Section with expandable header -->
+                  <div class="section-header">
+                    <div class="section-toggle" @click="toggleSectionExpansion(unit.unitName, section.sectionName)">
+                      <FeatherIcon 
+                        :name="getSectionExpansion(unit.unitName, section.sectionName) ? 'chevron-down' : 'chevron-right'" 
+                        class="section-chevron"
                       />
-                      <span class="section-title">{{ section.displayName }}</span>
-                    </label>
+                      <label class="section-checkbox-label" @click.stop>
+                        <input 
+                          type="checkbox" 
+                          :checked="isSectionSelected(section)"
+                          @change="toggleSectionSelection(section)"
+                          class="topic-checkbox"
+                        />
+                        <span class="section-title">{{ section.displayName }}</span>
+                      </label>
+                    </div>
                   </div>
 
-                  <!-- Topic Items -->
-                  <div class="topic-items">
-                    <label 
-                      v-for="topic in section.topics" 
-                      :key="topic.no"
-                      class="topic-item-label"
-                      :class="{ 'subsection-topic': section.sectionName && section.sectionName !== '' }"
-                    >
-                      <input 
-                        type="checkbox" 
-                        v-model="selectedTopicIds"
-                        :value="topic.no"
-                        class="topic-checkbox"
-                      />
-                      <span class="topic-name" :title="topic.originalName">{{ topic.displayName }}</span>
-                    </label>
+                  <!-- Section Content -->
+                  <div v-if="getSectionExpansion(unit.unitName, section.sectionName)" class="section-content">
+                    
+                    <!-- Direct Section Topics (if any) -->
+                    <div v-if="section.directTopics.length > 0" class="direct-topics">
+                      <label 
+                        v-for="topic in section.directTopics" 
+                        :key="topic.no"
+                        class="topic-item-label level-2"
+                      >
+                        <input 
+                          type="checkbox" 
+                          v-model="selectedTopicIds"
+                          :value="topic.no"
+                          class="topic-checkbox"
+                        />
+                        <span class="topic-name" :title="topic.originalName">{{ topic.displayName }}</span>
+                      </label>
+                    </div>
+
+                    <!-- Subsections -->
+                    <div v-if="Object.keys(section.subsections).length > 0" class="subsections">
+                      <div v-for="subsection in section.subsections" :key="subsection.subsectionName" class="subsection-group">
+                        
+                        <!-- Subsection as Level 3 topic -->
+                        <div class="subsection-content">
+                          <!-- Subsection Parent Topic (without Overview label) -->
+                          <label class="topic-item-label level-3">
+                            <input 
+                              type="checkbox" 
+                              v-model="selectedTopicIds"
+                              :value="subsection.topicId"
+                              class="topic-checkbox"
+                            />
+                            <span class="topic-name">{{ subsection.displayName }}</span>
+                          </label>
+
+                          <!-- Subsection Child Topics (Level 4) -->
+                          <div v-if="subsection.topics.length > 0" class="subsection-topics">
+                            <label 
+                              v-for="topic in subsection.topics" 
+                              :key="topic.no"
+                              class="topic-item-label level-4"
+                            >
+                              <input 
+                                type="checkbox" 
+                                v-model="selectedTopicIds"
+                                :value="topic.no"
+                                class="topic-checkbox"
+                              />
+                              <span class="topic-name" :title="topic.originalName">{{ topic.displayName }}</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <!-- No search results in organized view -->
+            <!-- No search results -->
             <div v-if="topicsSearchQuery && filteredOrganizedTopics.length === 0" class="no-topics-found">
               No topics found matching your search
             </div>
@@ -322,7 +370,7 @@
           <div class="submission-section">
             <h4 class="section-title">Topics Covered in this Session:</h4>
             
-            <div v-if="selectedTopicIds.length > 0" class="topic-completion-list">
+            <div v-if="getSelectedTopicDetails().length > 0" class="topic-completion-list">
               <p class="completion-instruction">
                 <FeatherIcon name="info" class="instruction-icon" />
                 <span>Mark completed topics:</span>
@@ -342,6 +390,15 @@
                   <span class="completion-topic-name">{{ topic.displayName }}</span>
                 </label>
               </div>
+              
+              <!-- Informational note about parent topics -->
+              <!-- <div class="parent-topics-note">
+                <FeatherIcon name="info" class="w-4 h-4 text-blue-500" />
+                <span class="note-text">
+                  Parent topics (like "Database Concepts", "Introduction to Database Concepts") will be automatically 
+                  marked as completed when all their child topics are completed.
+                </span>
+              </div> -->
             </div>
 
             <div v-else class="no-topics-selected">
@@ -432,6 +489,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { FeatherIcon } from 'frappe-ui'
 import { createResource } from 'frappe-ui'
+import { nextTick } from 'vue'
 
 // Props from parent component
 const props = defineProps({
@@ -461,6 +519,9 @@ const successTitle = ref('')
 const successMessage = ref('')
 const errorTitle = ref('')
 const errorMessage = ref('')
+// Add these to your existing reactive state
+const expandedSections = ref({}) // Format: "unitName-sectionName": boolean
+const expandedSubsections = ref({}) // Format: "unitName-sectionName-subsectionName": boolean
 
 // Watch for changes in props.students
 watch(() => props.students, (newStudents) => {
@@ -479,67 +540,226 @@ const formatTopicNameForDisplay = (topicName) => {
   return match ? (match[1] || topicName) : topicName;
 };
 
+// Helper methods for section expansion
+const getSectionKey = (unitName, sectionName) => `${unitName}-${sectionName}`
+const getSubsectionKey = (unitName, sectionName, subsectionName) => `${unitName}-${sectionName}-${subsectionName}`
+
+const getSectionExpansion = (unitName, sectionName) => {
+  const key = getSectionKey(unitName, sectionName)
+  return expandedSections.value[key] ?? true // Default to expanded
+}
+
+const getSubsectionExpansion = (unitName, sectionName, subsectionName) => {
+  const key = getSubsectionKey(unitName, sectionName, subsectionName)
+  return expandedSubsections.value[key] ?? false // Default to collapsed
+}
+
+const toggleSectionExpansion = (unitName, sectionName) => {
+  const key = getSectionKey(unitName, sectionName)
+  expandedSections.value[key] = !getSectionExpansion(unitName, sectionName)
+}
+
+const toggleSubsectionExpansion = (unitName, sectionName, subsectionName) => {
+  const key = getSubsectionKey(unitName, sectionName, subsectionName)
+  expandedSubsections.value[key] = !getSubsectionExpansion(unitName, sectionName, subsectionName)
+}
+
+
 const organizeTopics = (topicsList) => {
   if (!topicsList || topicsList.length === 0) return [];
+  
   const units = {};
-  const topicRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-\d+)?-(.*)$/;
+  const topicRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/;
 
+  console.log('Processing topics:', topicsList.map(t => t.topic_name || t.topic));
+
+  // First pass: identify unit parents and initialize structure
   topicsList.forEach(topic => {
     const topicName = topic.topic_name || topic.topic || '';
     const match = topicName.match(topicRegex);
-    let unitKey, sectionKey, displayName, unitNumber;
-
+    
     if (match) {
-      unitKey = match[1];
-      sectionKey = match[2] || 'main';
-      displayName = match[3];
-      unitNumber = unitKey.split('-')[1];
-    } else {
-      unitKey = 'General';
-      sectionKey = 'main';
-      displayName = topicName;
-      unitNumber = '';
+      const unitKey = match[1]; // e.g., "UNIT-I"
+      const sectionKey = match[2]; // e.g., "A" 
+      const subsectionKey = match[3]; // e.g., "1"
+      const displayName = match[4]; // e.g., "Database Concepts"
+      const unitNumber = unitKey.split('-')[1];
+
+      // Initialize unit if doesn't exist
+      if (!units[unitKey]) {
+        units[unitKey] = {
+          unitName: unitKey,
+          displayName: `Unit ${unitNumber}`, // Will be updated if we find a unit parent
+          topicId: null,
+          allTopicsInUnit: [],
+          sections: {}
+        };
+      }
+
+      // If this is a unit-level topic (no section, no subsection)
+      if (!sectionKey && !subsectionKey) {
+        units[unitKey].displayName = displayName;
+        units[unitKey].topicId = topic.no;
+      }
+    }
+  });
+
+  // Second pass: organize all topics into proper hierarchy
+  topicsList.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const match = topicName.match(topicRegex);
+    
+    if (!match) return; // Skip topics that don't match pattern
+    
+    const unitKey = match[1];
+    const sectionKey = match[2];
+    const subsectionKey = match[3];
+    const displayName = match[4];
+
+    if (!units[unitKey]) return; // Skip if unit doesn't exist
+
+    // Add to unit's all topics
+    units[unitKey].allTopicsInUnit.push({
+      ...topic,
+      originalName: topicName,
+      displayName: displayName
+    });
+
+    // Handle different hierarchy levels
+    if (!sectionKey) {
+      // This is a unit-level topic - already handled in first pass
+      return;
     }
 
-    if (!units[unitKey]) {
-      units[unitKey] = {
-        unitName: unitKey,
-        displayName: unitKey === 'General' ? 'General Topics' : `Unit ${unitNumber}`,
-        allTopicsInUnit: [],
-        sections: {}
-      };
-    }
+    // Initialize section if doesn't exist
     if (!units[unitKey].sections[sectionKey]) {
-      let sectionDisplayName = sectionKey === 'main' ? '' : `Section ${sectionKey}`;
-      if (unitKey === 'General' && sectionKey === 'main') {
-        sectionDisplayName = 'Select All';
-      }
       units[unitKey].sections[sectionKey] = {
         sectionName: sectionKey,
-        displayName: sectionDisplayName,
-        topics: []
+        displayName: '',
+        topicId: null,
+        subsections: {},
+        directTopics: []
       };
     }
-    const formattedTopic = { ...topic, originalName: topicName, displayName };
-    units[unitKey].sections[sectionKey].topics.push(formattedTopic);
-    units[unitKey].allTopicsInUnit.push(formattedTopic);
+
+    const section = units[unitKey].sections[sectionKey];
+
+    if (!subsectionKey) {
+      // This is a section-level topic (e.g., "UNIT-I-A-Introduction to Database Concepts")
+      section.displayName = displayName;
+      section.topicId = topic.no;
+    } else {
+      // This has a subsection (e.g., "UNIT-I-A-1-Characteristics")
+      
+      // Initialize subsection if doesn't exist
+      if (!section.subsections[subsectionKey]) {
+        section.subsections[subsectionKey] = {
+          subsectionName: subsectionKey,
+          displayName: displayName,
+          topicId: topic.no,
+          topics: []
+        };
+      }
+      // Note: For now, we treat numbered subsections as parent topics
+      // Child topics would have additional numbering like UNIT-I-A-1-1-xxx
+    }
   });
-  
+
+  // Third pass: Look for child topics under numbered subsections
+  // Pattern: UNIT-I-A-1-1-xxx, UNIT-I-A-1-2-xxx (children of UNIT-I-A-1-xxx)
+  topicsList.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const childMatch = topicName.match(/^(UNIT-[IVX]+)-([A-Z])-(\d+)-(\d+)-(.*)$/);
+    
+    if (childMatch) {
+      const unitKey = childMatch[1];
+      const sectionKey = childMatch[2];
+      const subsectionKey = childMatch[3];
+      const childNumber = childMatch[4];
+      const displayName = childMatch[5];
+      
+      if (units[unitKey]?.sections[sectionKey]?.subsections[subsectionKey]) {
+        units[unitKey].sections[sectionKey].subsections[subsectionKey].topics.push({
+          ...topic,
+          originalName: topicName,
+          displayName: displayName
+        });
+      }
+    }
+  });
+
+  // Sort and return organized structure
   const romanToNum = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
-  return Object.values(units)
+  
+  const result = Object.values(units)
     .sort((a, b) => {
-        if (a.unitName === 'General') return -1;
-        if (b.unitName === 'General') return 1;
-        return (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0);
+      if (a.unitName === 'General') return -1;
+      if (b.unitName === 'General') return 1;
+      return (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0);
     })
     .map(unit => ({
       ...unit,
-      sections: Object.values(unit.sections).filter(s => s.topics.length > 0).sort((a, b) => a.sectionName.localeCompare(b.sectionName))
+      sections: Object.values(unit.sections)
+        .filter(s => s.topicId || s.directTopics.length > 0 || Object.keys(s.subsections).length > 0)
+        .sort((a, b) => a.sectionName.localeCompare(b.sectionName))
+        .map(section => ({
+          ...section,
+          subsections: Object.values(section.subsections)
+            .sort((a, b) => {
+              const aNum = parseInt(a.subsectionName);
+              const bNum = parseInt(b.subsectionName);
+              if (!isNaN(aNum) && !isNaN(bNum)) {
+                return aNum - bNum;
+              }
+              return a.subsectionName.localeCompare(b.subsectionName);
+            })
+        }))
     }))
     .filter(unit => unit.allTopicsInUnit.length > 0);
+
+  console.log('Organized topics result:', result);
+  return result;
 };
 
 const organizedTopics = computed(() => organizeTopics(props.topics));
+
+const isSubsectionSelected = (subsection) => {
+  const allSubsectionTopics = [];
+  
+  // Add subsection parent
+  if (subsection.topicId) {
+    allSubsectionTopics.push({ no: subsection.topicId });
+  }
+  
+  // Add subsection child topics
+  allSubsectionTopics.push(...subsection.topics);
+  
+  return allSubsectionTopics.length > 0 && allSubsectionTopics.every(t => selectedTopicIds.value.includes(t.no));
+};
+
+const toggleSubsectionSelection = (subsection) => {
+  const shouldSelect = !isSubsectionSelected(subsection);
+  
+  // Toggle subsection parent
+  if (subsection.topicId) {
+    const index = selectedTopicIds.value.indexOf(subsection.topicId);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(subsection.topicId);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
+  }
+  
+  // Toggle subsection topics
+  subsection.topics.forEach(t => {
+    const index = selectedTopicIds.value.indexOf(t.no);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(t.no);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
+  });
+};
 
 const filteredOrganizedTopics = computed(() => {
   if (!topicsSearchQuery.value.trim()) return organizedTopics.value;
@@ -605,30 +825,119 @@ const confirmTopicsSelection = () => {
 const closeConfirmModal = () => { showConfirmModal.value = false; };
 
 const toggleUnit = (unitName) => { expandedUnits.value[unitName] = !expandedUnits.value[unitName]; };
-const isUnitSelected = (unit) => unit.allTopicsInUnit.every(t => selectedTopicIds.value.includes(t.no));
+const isUnitSelected = (unit) => {
+  return unit.allTopicsInUnit.every(t => selectedTopicIds.value.includes(t.no));
+};
 const toggleUnitSelection = (unit) => {
   const shouldSelect = !isUnitSelected(unit);
+  
   unit.allTopicsInUnit.forEach(t => {
     const index = selectedTopicIds.value.indexOf(t.no);
-    if (shouldSelect && index === -1) selectedTopicIds.value.push(t.no);
-    else if (!shouldSelect && index > -1) selectedTopicIds.value.splice(index, 1);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(t.no);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
   });
 };
 
-const isSectionSelected = (section) => section.topics.every(t => selectedTopicIds.value.includes(t.no));
+const isSectionSelected = (section) => {
+  const allSectionTopics = [];
+  
+  // Add section parent if exists
+  if (section.topicId) {
+    allSectionTopics.push({ no: section.topicId });
+  }
+  
+  // Add direct topics
+  allSectionTopics.push(...section.directTopics);
+  
+  // Add all subsection topics (both parent and children)
+  Object.values(section.subsections).forEach(subsection => {
+    if (subsection.topicId) {
+      allSectionTopics.push({ no: subsection.topicId });
+    }
+    allSectionTopics.push(...subsection.topics);
+  });
+  
+  return allSectionTopics.length > 0 && allSectionTopics.every(t => selectedTopicIds.value.includes(t.no));
+};
+
 const toggleSectionSelection = (section) => {
-  const isSelected = isSectionSelected(section);
-  section.topics.forEach(t => {
+  const shouldSelect = !isSectionSelected(section);
+  
+  // Toggle section parent if exists
+  if (section.topicId) {
+    const index = selectedTopicIds.value.indexOf(section.topicId);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(section.topicId);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
+  }
+  
+  // Toggle direct topics
+  section.directTopics.forEach(t => {
     const index = selectedTopicIds.value.indexOf(t.no);
-    if (!isSelected && index === -1) selectedTopicIds.value.push(t.no);
-    else if (isSelected && index > -1) selectedTopicIds.value.splice(index, 1);
+    if (shouldSelect && index === -1) {
+      selectedTopicIds.value.push(t.no);
+    } else if (!shouldSelect && index > -1) {
+      selectedTopicIds.value.splice(index, 1);
+    }
+  });
+  
+  // Toggle all subsections
+  Object.values(section.subsections).forEach(subsection => {
+    // Toggle subsection parent
+    if (subsection.topicId) {
+      const index = selectedTopicIds.value.indexOf(subsection.topicId);
+      if (shouldSelect && index === -1) {
+        selectedTopicIds.value.push(subsection.topicId);
+      } else if (!shouldSelect && index > -1) {
+        selectedTopicIds.value.splice(index, 1);
+      }
+    }
+    
+    // Toggle subsection topics
+    subsection.topics.forEach(t => {
+      const index = selectedTopicIds.value.indexOf(t.no);
+      if (shouldSelect && index === -1) {
+        selectedTopicIds.value.push(t.no);
+      } else if (!shouldSelect && index > -1) {
+        selectedTopicIds.value.splice(index, 1);
+      }
+    });
   });
 };
 
-const getSelectedTopicDetails = () => (props.topics || [])
-  .filter(t => selectedTopicIds.value.includes(t.no))
-  .map(t => ({ ...t, displayName: formatTopicNameForDisplay(t.topic_name || t.topic) }));
-
+const getSelectedTopicDetails = () => {
+  const allSelectedTopics = (props.topics || [])
+    .filter(t => selectedTopicIds.value.includes(t.no))
+    .map(t => ({ ...t, displayName: formatTopicNameForDisplay(t.topic_name || t.topic) }));
+  
+  // Filter out parent topics - only show leaf/child topics that teachers actually teach
+  const leafTopics = allSelectedTopics.filter(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const match = topicName.match(/^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/);
+    
+    if (!match) return true; // Include non-standard topics
+    
+    const unitKey = match[1];
+    const sectionKey = match[2];
+    const subsectionKey = match[3];
+    
+    // Hide unit-level parents (UNIT-I-Database Concepts)
+    if (!sectionKey && !subsectionKey) return false;
+    
+    // Hide section-level parents (UNIT-I-A-Introduction to Database Concepts)
+    if (sectionKey && !subsectionKey) return false;
+    
+    // Show subsection-level topics and below (UNIT-I-A-1-Characteristics, etc.)
+    return true;
+  });
+  
+  return leafTopics;
+};
 
 // --- SUBMISSION LOGIC (The only function that changes) ---
 
@@ -644,16 +953,109 @@ const confirmSubmit = () => {
   closeConfirmModal();
   isSubmitting.value = true;
 
-  // Build the payload for ONLY the topics that were covered in this session
-  const taughtTopics = (props.topics || [])
-    .filter(topic => selectedTopicIds.value.includes(topic.no))
-    .map(topic => {
-      return {
-        topic: topic.topic || topic.topic_name,
-        // 'completed' is true only if it was checked in the final modal
-        completed: completedTopicIds.value.includes(topic.no)
-      };
+  // Get all topics that were selected (including parents)
+  const allSelectedTopics = (props.topics || [])
+    .filter(topic => selectedTopicIds.value.includes(topic.no));
+  
+  // Separate parent topics from leaf topics
+  const parentTopics = [];
+  const leafTopics = [];
+  
+  allSelectedTopics.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    const match = topicName.match(/^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/);
+    
+    if (!match) {
+      leafTopics.push(topic);
+      return;
+    }
+    
+    const unitKey = match[1];
+    const sectionKey = match[2];
+    const subsectionKey = match[3];
+    
+    // Classify as parent or leaf
+    if ((!sectionKey && !subsectionKey) || (sectionKey && !subsectionKey)) {
+      parentTopics.push(topic);
+    } else {
+      leafTopics.push(topic);
+    }
+  });
+  
+  // Build the payload with intelligent parent completion
+  const taughtTopics = [];
+  
+  // Add leaf topics with their completion status from the modal
+  leafTopics.forEach(topic => {
+    taughtTopics.push({
+      topic: topic.topic || topic.topic_name,
+      completed: completedTopicIds.value.includes(topic.no)
     });
+  });
+  
+  // Add parent topics with auto-completion logic
+  parentTopics.forEach(parentTopic => {
+    const topicName = parentTopic.topic_name || parentTopic.topic || '';
+    const match = topicName.match(/^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/);
+    
+    if (!match) {
+      // Non-standard parent topic - mark as completed if selected
+      taughtTopics.push({
+        topic: parentTopic.topic || parentTopic.topic_name,
+        completed: completedTopicIds.value.includes(parentTopic.no)
+      });
+      return;
+    }
+    
+    const unitKey = match[1];
+    const sectionKey = match[2];
+    const subsectionKey = match[3];
+    
+    // Auto-complete parent topics based on their children's completion
+    let shouldComplete = false;
+    
+    if (!sectionKey && !subsectionKey) {
+      // Unit-level parent: complete if all its child sections/subsections are completed
+      const unitChildren = leafTopics.filter(child => {
+        const childName = child.topic_name || child.topic || '';
+        return childName.startsWith(unitKey + '-');
+      });
+      
+      const unitChildrenSelected = unitChildren.filter(child => 
+        selectedTopicIds.value.includes(child.no)
+      );
+      
+      const unitChildrenCompleted = unitChildren.filter(child => 
+        completedTopicIds.value.includes(child.no)
+      );
+      
+      // Complete if all selected children of this unit are completed
+      shouldComplete = unitChildrenSelected.length > 0 && 
+                      unitChildrenSelected.every(child => completedTopicIds.value.includes(child.no));
+      
+    } else if (sectionKey && !subsectionKey) {
+      // Section-level parent: complete if all its subsections are completed
+      const sectionChildren = leafTopics.filter(child => {
+        const childName = child.topic_name || child.topic || '';
+        return childName.startsWith(`${unitKey}-${sectionKey}-`);
+      });
+      
+      const sectionChildrenSelected = sectionChildren.filter(child => 
+        selectedTopicIds.value.includes(child.no)
+      );
+      
+      // Complete if all selected children of this section are completed
+      shouldComplete = sectionChildrenSelected.length > 0 && 
+                      sectionChildrenSelected.every(child => completedTopicIds.value.includes(child.no));
+    }
+    
+    taughtTopics.push({
+      topic: parentTopic.topic || parentTopic.topic_name,
+      completed: shouldComplete
+    });
+  });
+  
+  console.log('Topics being submitted:', taughtTopics);
   
   const requestData = {
     students_present: JSON.stringify(students.value.filter(s => !s.status && s.checked === true).map(s => ({ student: s.student, student_name: s.student_name }))),
@@ -694,6 +1096,44 @@ onMounted(() => {
     expandedUnits.value[organizedTopics.value[0].unitName] = true;
   }
 });
+
+// Auto-selection watcher - updated version
+const checkAutoSelection = () => {
+  organizedTopics.value.forEach(unit => {
+    // Check if all unit topics are selected to auto-select unit
+    if (unit.topicId && !selectedTopicIds.value.includes(unit.topicId)) {
+      const unitTopicsWithoutParent = unit.allTopicsInUnit.filter(t => t.no !== unit.topicId);
+      if (unitTopicsWithoutParent.length > 0 && unitTopicsWithoutParent.every(t => selectedTopicIds.value.includes(t.no))) {
+        selectedTopicIds.value.push(unit.topicId);
+      }
+    }
+    
+    unit.sections.forEach(section => {
+      // Check if all section content is selected to auto-select section parent
+      if (section.topicId && !selectedTopicIds.value.includes(section.topicId)) {
+        const allSectionContent = [
+          ...section.directTopics,
+          ...Object.values(section.subsections).flatMap(sub => {
+            const items = [...sub.topics];
+            if (sub.topicId) items.push({ no: sub.topicId });
+            return items;
+          })
+        ];
+        
+        if (allSectionContent.length > 0 && allSectionContent.every(t => selectedTopicIds.value.includes(t.no))) {
+          selectedTopicIds.value.push(section.topicId);
+        }
+      }
+    });
+  });
+};
+
+// Watch for changes in selectedTopicIds to trigger auto-selection
+watch(selectedTopicIds, () => {
+  nextTick(() => {
+    checkAutoSelection();
+  });
+}, { deep: true });
 </script>
 
 <style scoped>
@@ -1317,8 +1757,8 @@ onMounted(() => {
 }
 
 .section-header {
-  padding: 0.5rem 1rem 0.5rem 1rem;
-  background: #fafbfc;
+  /* padding: 0.5rem 1rem 0.5rem 1rem; */
+  background: #eef1f3;
 }
 
 .section-checkbox-label {
@@ -1584,5 +2024,259 @@ onMounted(() => {
 .completion-topic-name {
   font-size: 0.9rem;
   color: #374151;
+}
+/* Add these missing CSS styles to your existing <style scoped> section */
+
+/* Unit Content */
+.unit-content {
+  background: white;
+}
+
+/* Unit Parent Topic */
+.unit-parent-topic {
+  padding: 0.5rem 1rem;
+  background: #fafbfc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Section Styles */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem 0.75rem 2rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background: #eef1f3;
+}
+
+.section-toggle:hover {
+  background: #f1f5f9;
+}
+
+.section-chevron {
+  width: 1rem;
+  height: 1rem;
+  color: #64748b;
+  margin-right: 0.5rem;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.section-content {
+  background: white;
+}
+
+/* Direct Topics */
+.direct-topics {
+  padding: 0.25rem 0;
+}
+
+/* Subsections */
+.subsections {
+  margin-top: 0.25rem;
+}
+
+.subsection-group {
+  border-top: 1px solid #f3f4f6;
+}
+
+.subsection-group:first-child {
+  border-top: none;
+}
+
+.subsection-header {
+  background: #f9fafb;
+}
+
+.subsection-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 1rem 0.625rem 3rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.subsection-toggle:hover {
+  background: #f3f4f6;
+}
+
+.subsection-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #64748b;
+  margin-right: 0.5rem;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.subsection-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.subsection-title {
+  font-weight: 500;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.subsection-content {
+  background: #f6f6f6;
+  padding: 0.25rem 0;
+}
+
+.subsection-topics {
+  padding: 0.25rem 0;
+}
+
+/* Topic Items with Different Levels */
+.topic-item-label {
+  display: flex !important; /* Override the existing block display */
+  align-items: flex-start;
+  gap: 0.75rem;
+  /* padding: 0.5rem 1rem; */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* Level-based indentation - IMPORTANT: These override existing styles */
+.topic-item-label.level-1 {
+  padding-left: 2.5rem !important;
+  background: #fafbfc;
+  border-left: 3px solid #3b82f6;
+  margin-bottom: 0.25rem;
+}
+
+.topic-item-label.level-2 {
+  padding-left: 3.5rem !important;
+  border-left: 2px solid #e5e7eb;
+}
+
+.topic-item-label.level-3 {
+  padding-left: 4.5rem !important;
+  background: #f6f6f6;
+  border-left: 2px solid #10b981;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.topic-item-label.level-4 {
+  padding-left: 5.5rem !important;
+  border-left: 1px solid #e5e7eb;
+}
+
+.topic-checkbox {
+  width: 18px !important; /* Override existing 16px */
+  height: 18px !important;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  accent-color: #3b82f6;
+}
+
+.topic-name {
+  color: #374151;
+  line-height: 1.4;
+  word-break: break-word;
+  flex: 1;
+  padding-left: 0 !important; /* Remove existing padding-left: 5px */
+}
+
+.topic-name.parent-topic {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Hover effects for different levels */
+.topic-item-label.level-1:hover {
+  background: #f1f5f9 !important;
+}
+
+.topic-item-label.level-2:hover {
+  background: #f9fafb !important;
+}
+
+.topic-item-label.level-3:hover {
+  background: #f1f5f9 !important;
+}
+
+.topic-item-label.level-4:hover {
+  background: #f9fafb !important;
+}
+
+/* Selected state styling */
+.topic-item-label:has(input:checked) {
+  background: #eff6ff !important;
+}
+
+.topic-item-label:has(input:checked) .topic-name {
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+/* Better unit header styling */
+.unit-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 600;
+}
+
+.unit-chevron {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  color: #64748b;
+  margin-right: 0.75rem;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+/* Section header improvements */
+.section-toggle {
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.section-toggle:hover {
+  border-left-color: #3b82f6;
+}
+
+/* Compact mode for smaller screens */
+@media (max-width: 640px) {
+  .topic-item-label.level-1 { padding-left: 1.5rem !important; }
+  .topic-item-label.level-2 { padding-left: 2rem !important; }
+  .topic-item-label.level-3 { padding-left: 2.5rem !important; }
+  .topic-item-label.level-4 { padding-left: 3rem !important; }
+  
+  .section-toggle { padding-left: 1rem !important; }
+  .subsection-toggle { padding-left: 2rem !important; }
+  
+  .unit-header { padding: 0.75rem; }
+  .section-toggle { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .subsection-toggle { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+}
+/* Add this CSS to your existing styles */
+
+.parent-topics-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 0.5rem;
+  border-left: 3px solid #3b82f6;
+}
+
+.note-text {
+  font-size: 0.875rem;
+  color: #1e40af;
+  line-height: 1.4;
+  flex: 1;
 }
 </style>
