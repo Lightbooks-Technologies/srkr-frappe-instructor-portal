@@ -204,8 +204,10 @@ const combineConsecutiveCourses = (scheduleData) => {
   let currentGroup = null
 
   for (const course of sortedData) {
-    // If this is the first course or different course_id, start a new group
-    if (!currentGroup || currentGroup.course_id !== course.course_id) {
+    // If this is the first course or different course_id/student_group, start a new group
+    if (!currentGroup || 
+        currentGroup.course_id !== course.course_id || 
+        currentGroup.student_group !== course.student_group) {
       // Save the previous group if it exists
       if (currentGroup) {
         combined.push(currentGroup)
@@ -217,7 +219,7 @@ const combineConsecutiveCourses = (scheduleData) => {
         all_course_schedule_id: [course.course_schedule_id]
       }
     } else {
-      // Same course_id, check if it's consecutive
+      // Same course_id and student_group, check if it's consecutive
       const currentEndTime = new Date(currentGroup.end_time)
       const nextStartTime = new Date(course.start_time)
       
