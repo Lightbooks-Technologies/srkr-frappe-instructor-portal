@@ -209,6 +209,24 @@
               <!-- Unit Content -->
               <div v-if="expandedUnits[unit.unitName]" class="unit-content">
                 
+                <!-- ADD THE NEW HTML HERE - RIGHT AFTER THE OPENING div -->
+                <div v-if="unit.directTopics && unit.directTopics.length > 0" class="unit-direct-topics">
+                  <label 
+                    v-for="topic in unit.directTopics" 
+                    :key="topic.no"
+                    class="topic-item-label level-1"
+                  >
+                    <input 
+                      type="checkbox" 
+                      v-model="selectedTopicIds"
+                      :value="topic.no"
+                      class="topic-checkbox"
+                    />
+                    <span class="topic-name" :title="topic.originalName">{{ topic.displayName }}</span>
+                  </label>
+                </div>
+                <!-- END OF NEW HTML -->
+
                 <!-- Sections -->
                 <div v-for="section in unit.sections" :key="section.sectionName" class="section-group">
                   
@@ -351,7 +369,7 @@
             @click="confirmTopicsSelection" 
             class="modal-button primary"
           >
-            Continue {{ selectedTopicIds.length === 0 ? '(No topics selected)' : '' }}
+            Continue {{ selectedTopicIds.length === 0 ? '' : '' }}
           </button>
         </div>
       </div>
@@ -535,12 +553,19 @@ watch(() => props.students, (newStudents) => {
 }, { immediate: true, deep: true })
 
 
-// --- HELPER & TOPIC ORGANIZATION FUNCTIONS (No changes here) ---
-
+// Enhanced formatTopicNameForDisplay to handle LAB format
 const formatTopicNameForDisplay = (topicName) => {
   if (typeof topicName !== 'string') return '';
-  const match = topicName.match(/^(?:UNIT-[IVX]+(?:-[A-Z])?(?:-\d+)?-)?(.*)$/);
-  return match ? (match[1] || topicName) : topicName;
+  
+  // Handle LAB format
+  const labMatch = topicName.match(/^LAB-(\d+)-(.*)$/);
+  if (labMatch) {
+    return `Lab ${labMatch[1]}: ${labMatch[2]}`;
+  }
+  
+  // Handle UNIT format (existing logic)
+  const unitMatch = topicName.match(/^(?:UNIT-[IVX]+(?:-[A-Z])?(?:-\d+)?-)?(.*)$/);
+  return unitMatch ? (unitMatch[1] || topicName) : topicName;
 };
 
 // Helper methods for section expansion
@@ -591,83 +616,56 @@ const countLeafTopics = (topics) => {
   }).length;
 };
 
-// Updated organizeTopics function with correct leaf topic counts
+// Enhanced organizeTopics function that handles UNIT, LAB, and normal topics
 const organizeTopics = (topicsList) => {
   if (!topicsList || topicsList.length === 0) return [];
   
   const units = {};
-  const topicRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/;
+  const labs = {};
+  const normalTopics = [];
+  
+  const unitRegex = /^(UNIT-[IVX]+)(?:-([A-Z]))?(?:-(\d+))?-(.*)$/;
+  const labRegex = /^(LAB)-(\d+)-(.*)$/;
 
   console.log('Processing topics:', topicsList.map(t => t.topic_name || t.topic));
 
-  // First pass: identify unit parents and initialize structure
-  topicsList.forEach(topic => {
-    const topicName = topic.topic_name || topic.topic || '';
-    const match = topicName.match(topicRegex);
-    
-    if (match) {
-      const unitKey = match[1]; // e.g., "UNIT-I"
-      const sectionKey = match[2]; // e.g., "A" 
-      const subsectionKey = match[3]; // e.g., "1"
-      const displayName = match[4]; // e.g., "Database Concepts"
-      const unitNumber = unitKey.split('-')[1];
-
-      // Initialize unit if doesn't exist
-      if (!units[unitKey]) {
-        units[unitKey] = {
-          unitName: unitKey,
-          displayName: `Unit ${unitNumber}`, // Will be updated if we find a unit parent
-          topicId: null,
-          allTopicsInUnit: [],
-          leafTopicsInUnit: [], // NEW: Track only leaf topics
-          sections: {}
-        };
-      }
-
-      // If this is a unit-level topic (no section, no subsection)
-      if (!sectionKey && !subsectionKey) {
-        units[unitKey].displayName = displayName;
-        units[unitKey].topicId = topic.no;
-      }
-    }
-  });
-
-  // Second pass: organize all topics into proper hierarchy
-  topicsList.forEach(topic => {
-    const topicName = topic.topic_name || topic.topic || '';
-    const match = topicName.match(topicRegex);
-    
-    if (!match) return; // Skip topics that don't match pattern
+  // Helper functions
+  const processUnitTopic = (topic, topicName, units, unitRegex) => {
+    const match = topicName.match(unitRegex);
+    if (!match) return;
     
     const unitKey = match[1];
     const sectionKey = match[2];
     const subsectionKey = match[3];
     const displayName = match[4];
+    const unitNumber = unitKey.split('-')[1];
 
-    if (!units[unitKey]) return; // Skip if unit doesn't exist
+    if (!units[unitKey]) {
+      units[unitKey] = {
+        unitName: unitKey,
+        displayName: `Unit ${unitNumber}`,
+        topicId: null,
+        allTopicsInUnit: [],
+        leafTopicsInUnit: [],
+        sections: {}
+      };
+    }
 
-    const topicData = {
-      ...topic,
-      originalName: topicName,
-      displayName: displayName
-    };
+    if (!sectionKey && !subsectionKey) {
+      units[unitKey].displayName = displayName;
+      units[unitKey].topicId = topic.no;
+    }
 
-    // Add to unit's all topics
+    const topicData = { ...topic, originalName: topicName, displayName: displayName };
     units[unitKey].allTopicsInUnit.push(topicData);
 
-    // Add to leaf topics only if it's not a parent topic
     const isParentTopic = (!sectionKey && !subsectionKey) || (sectionKey && !subsectionKey);
     if (!isParentTopic) {
       units[unitKey].leafTopicsInUnit.push(topicData);
     }
 
-    // Handle different hierarchy levels
-    if (!sectionKey) {
-      // This is a unit-level topic - already handled in first pass
-      return;
-    }
+    if (!sectionKey) return;
 
-    // Initialize section if doesn't exist
     if (!units[unitKey].sections[sectionKey]) {
       units[unitKey].sections[sectionKey] = {
         sectionName: sectionKey,
@@ -675,23 +673,18 @@ const organizeTopics = (topicsList) => {
         topicId: null,
         subsections: {},
         directTopics: [],
-        leafTopicsInSection: [] // NEW: Track only leaf topics in section
+        leafTopicsInSection: []
       };
     }
 
     const section = units[unitKey].sections[sectionKey];
 
     if (!subsectionKey) {
-      // This is a section-level topic (e.g., "UNIT-I-A-Introduction to Database Concepts")
       section.displayName = displayName;
       section.topicId = topic.no;
     } else {
-      // This has a subsection (e.g., "UNIT-I-A-1-Characteristics")
-      
-      // Add to section's leaf topics
       section.leafTopicsInSection.push(topicData);
       
-      // Initialize subsection if doesn't exist
       if (!section.subsections[subsectionKey]) {
         section.subsections[subsectionKey] = {
           subsectionName: subsectionKey,
@@ -700,12 +693,84 @@ const organizeTopics = (topicsList) => {
           topics: []
         };
       }
-      // Note: For now, we treat numbered subsections as parent topics
-      // Child topics would have additional numbering like UNIT-I-A-1-1-xxx
+    }
+  };
+
+  const processLabTopic = (topic, topicName, labs, labRegex) => {
+    const match = topicName.match(labRegex);
+    if (!match) return;
+    
+    const labNumber = parseInt(match[2]);
+    const labDescription = match[3];
+    
+    const topicData = {
+      ...topic,
+      originalName: topicName,
+      displayName: `Lab ${labNumber}: ${labDescription}`,
+      labNumber: labNumber
+    };
+    
+    labs[labNumber] = topicData;
+  };
+
+  const organizeUnits = (units) => {
+    const romanToNum = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
+    
+    return Object.values(units)
+      .sort((a, b) => (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0))
+      .map(unit => ({
+        ...unit,
+        sections: Object.values(unit.sections)
+          .filter(s => s.topicId || s.directTopics.length > 0 || Object.keys(s.subsections).length > 0)
+          .sort((a, b) => a.sectionName.localeCompare(b.sectionName))
+          .map(section => ({
+            ...section,
+            subsections: Object.values(section.subsections)
+              .sort((a, b) => {
+                const aNum = parseInt(a.subsectionName);
+                const bNum = parseInt(b.subsectionName);
+                return !isNaN(aNum) && !isNaN(bNum) ? aNum - bNum : a.subsectionName.localeCompare(b.subsectionName);
+              })
+          }))
+      }))
+      .filter(unit => unit.allTopicsInUnit.length > 0);
+  };
+
+const organizeLabs = (labs) => {
+  const labTopics = Object.values(labs).sort((a, b) => a.labNumber - b.labNumber);
+  
+  // Return labs as direct topics under the unit, not in a nested section
+  return {
+    unitName: 'LABS',
+    displayName: `Laboratory Experiments`,
+    topicId: null,
+    allTopicsInUnit: labTopics,
+    leafTopicsInUnit: labTopics,
+    // Use empty sections array since labs should be direct topics
+    sections: [],
+    // Add direct topics at unit level for labs
+    directTopics: labTopics
+  };
+};
+
+  // First, categorize topics by type
+  topicsList.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    
+    if (unitRegex.test(topicName)) {
+      processUnitTopic(topic, topicName, units, unitRegex);
+    } else if (labRegex.test(topicName)) {
+      processLabTopic(topic, topicName, labs, labRegex);
+    } else {
+      normalTopics.push({
+        ...topic,
+        originalName: topicName,
+        displayName: formatTopicNameForDisplay(topicName)
+      });
     }
   });
 
-  // Third pass: Look for child topics under numbered subsections
+  // Handle child topics under numbered subsections (existing logic)
   topicsList.forEach(topic => {
     const topicName = topic.topic_name || topic.topic || '';
     const childMatch = topicName.match(/^(UNIT-[IVX]+)-([A-Z])-(\d+)-(\d+)-(.*)$/);
@@ -714,32 +779,157 @@ const organizeTopics = (topicsList) => {
       const unitKey = childMatch[1];
       const sectionKey = childMatch[2];
       const subsectionKey = childMatch[3];
-      const childNumber = childMatch[4];
-      const displayName = childMatch[5];
       
       if (units[unitKey]?.sections[sectionKey]?.subsections[subsectionKey]) {
         const childTopic = {
           ...topic,
           originalName: topicName,
-          displayName: displayName
+          displayName: childMatch[5]
         };
         
         units[unitKey].sections[sectionKey].subsections[subsectionKey].topics.push(childTopic);
-        
-        // Add to leaf topics counts
         units[unitKey].leafTopicsInUnit.push(childTopic);
         units[unitKey].sections[sectionKey].leafTopicsInSection.push(childTopic);
       }
     }
   });
 
-  // Sort and return organized structure
+  // Organize results
+  const result = [];
+  
+  if (Object.keys(units).length > 0) {
+    result.push(...organizeUnits(units));
+  }
+  
+  if (Object.keys(labs).length > 0) {
+    result.push(organizeLabs(labs));
+  }
+  
+  if (normalTopics.length > 0) {
+    result.push({
+      unitName: 'General',
+      displayName: 'General Topics',
+      topicId: null,
+      allTopicsInUnit: normalTopics,
+      leafTopicsInUnit: normalTopics,
+      sections: [{
+        sectionName: 'A',
+        displayName: 'General Topics',
+        topicId: null,
+        subsections: {},
+        directTopics: normalTopics,
+        leafTopicsInSection: normalTopics
+      }]
+    });
+  }
+
+  console.log('Organized topics result:', result);
+  return result;
+};
+
+// Process UNIT topics (existing logic)
+function processUnitTopic(topic, topicName, units, unitRegex) {
+  const match = topicName.match(unitRegex);
+  if (!match) return;
+  
+  const unitKey = match[1]; // e.g., "UNIT-I"
+  const sectionKey = match[2]; // e.g., "A" 
+  const subsectionKey = match[3]; // e.g., "1"
+  const displayName = match[4]; // e.g., "Database Concepts"
+  const unitNumber = unitKey.split('-')[1];
+
+  // Initialize unit if doesn't exist
+  if (!units[unitKey]) {
+    units[unitKey] = {
+      unitName: unitKey,
+      displayName: `Unit ${unitNumber}`,
+      topicId: null,
+      allTopicsInUnit: [],
+      leafTopicsInUnit: [],
+      sections: {}
+    };
+  }
+
+  // If this is a unit-level topic (no section, no subsection)
+  if (!sectionKey && !subsectionKey) {
+    units[unitKey].displayName = displayName;
+    units[unitKey].topicId = topic.no;
+  }
+
+  const topicData = {
+    ...topic,
+    originalName: topicName,
+    displayName: displayName
+  };
+
+  // Add to unit's all topics
+  units[unitKey].allTopicsInUnit.push(topicData);
+
+  // Add to leaf topics only if it's not a parent topic
+  const isParentTopic = (!sectionKey && !subsectionKey) || (sectionKey && !subsectionKey);
+  if (!isParentTopic) {
+    units[unitKey].leafTopicsInUnit.push(topicData);
+  }
+
+  // Handle different hierarchy levels
+  if (!sectionKey) return;
+
+  // Initialize section if doesn't exist
+  if (!units[unitKey].sections[sectionKey]) {
+    units[unitKey].sections[sectionKey] = {
+      sectionName: sectionKey,
+      displayName: '',
+      topicId: null,
+      subsections: {},
+      directTopics: [],
+      leafTopicsInSection: []
+    };
+  }
+
+  const section = units[unitKey].sections[sectionKey];
+
+  if (!subsectionKey) {
+    section.displayName = displayName;
+    section.topicId = topic.no;
+  } else {
+    section.leafTopicsInSection.push(topicData);
+    
+    if (!section.subsections[subsectionKey]) {
+      section.subsections[subsectionKey] = {
+        subsectionName: subsectionKey,
+        displayName: displayName,
+        topicId: topic.no,
+        topics: []
+      };
+    }
+  }
+}
+
+// Process LAB topics
+function processLabTopic(topic, topicName, labs, labRegex) {
+  const match = topicName.match(labRegex);
+  if (!match) return;
+  
+  const labNumber = parseInt(match[2]); // e.g., "1", "2", etc.
+  const labDescription = match[3]; // e.g., "Tensile test on a mild steel specimen"
+  
+  const topicData = {
+    ...topic,
+    originalName: topicName,
+    displayName: `Lab ${labNumber}: ${labDescription}`,
+    labNumber: labNumber
+  };
+  
+  // Store in labs object for later organization
+  labs[labNumber] = topicData;
+}
+
+// Organize units (existing logic)
+function organizeUnits(units) {
   const romanToNum = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5 };
   
-  const result = Object.values(units)
+  return Object.values(units)
     .sort((a, b) => {
-      if (a.unitName === 'General') return -1;
-      if (b.unitName === 'General') return 1;
       return (romanToNum[a.unitName.split('-')[1]] || 0) - (romanToNum[b.unitName.split('-')[1]] || 0);
     })
     .map(unit => ({
@@ -761,10 +951,63 @@ const organizeTopics = (topicsList) => {
         }))
     }))
     .filter(unit => unit.allTopicsInUnit.length > 0);
+}
 
-  console.log('Organized topics result:', result);
-  return result;
-};
+// Organize labs into a single unit-like structure
+function organizeLabs(labs) {
+  const labTopics = Object.values(labs).sort((a, b) => a.labNumber - b.labNumber);
+  
+  return {
+    unitName: 'LABS',
+    displayName: 'Laboratory Experiments',
+    topicId: null,
+    allTopicsInUnit: labTopics,
+    leafTopicsInUnit: labTopics, // All lab topics are leaf topics
+    sections: [{
+      sectionName: 'A',
+      displayName: 'Laboratory Experiments',
+      topicId: null,
+      subsections: {},
+      directTopics: labTopics,
+      leafTopicsInSection: labTopics
+    }]
+  };
+}
+
+
+// Enhanced fallback grouping for mixed topic types
+const groupedFallbackTopics = computed(() => {
+  if (!props.topics || props.topics.length === 0) return {};
+  
+  const groups = {};
+  const unitRegex = /^(UNIT-[IVX]+)/;
+  const labRegex = /^(LAB)-(\d+)/;
+  
+  props.topics.forEach(topic => {
+    const topicName = topic.topic_name || topic.topic || '';
+    let groupKey = 'General Topics';
+    
+    if (unitRegex.test(topicName)) {
+      const match = topicName.match(unitRegex);
+      const unitNumber = match[1].split('-')[1];
+      groupKey = `Unit ${unitNumber}`;
+    } else if (labRegex.test(topicName)) {
+      groupKey = 'Laboratory Experiments';
+    }
+    
+    if (!groups[groupKey]) {
+      groups[groupKey] = [];
+    }
+    
+    groups[groupKey].push({
+      ...topic,
+      displayName: formatTopicNameForDisplay(topicName)
+    });
+  });
+  
+  return groups;
+});
+
 
 const organizedTopics = computed(() => organizeTopics(props.topics));
 
@@ -806,16 +1049,56 @@ const toggleSubsectionSelection = (subsection) => {
   });
 };
 
+// Updated filteredOrganizedTopics to handle the new structure
 const filteredOrganizedTopics = computed(() => {
   if (!topicsSearchQuery.value.trim()) return organizedTopics.value;
+  
   const query = topicsSearchQuery.value.toLowerCase();
+  
   return organizedTopics.value
-    .map(unit => ({
-      ...unit,
-      sections: unit.sections.map(section => ({...section, topics: section.topics.filter(t => t.displayName.toLowerCase().includes(query))})).filter(s => s.topics.length > 0)
-    }))
+    .map(unit => {
+      // For lab sections, filter directTopics
+      const filteredSections = unit.sections.map(section => {
+        if (section.directTopics && section.directTopics.length > 0) {
+          // This is likely a lab or general section
+          return {
+            ...section,
+            directTopics: section.directTopics.filter(topic => 
+              topic.displayName.toLowerCase().includes(query)
+            )
+          };
+        } else {
+          // This is a regular unit section with subsections
+          return {
+            ...section,
+            subsections: Object.fromEntries(
+              Object.entries(section.subsections)
+                .map(([key, subsection]) => [
+                  key,
+                  {
+                    ...subsection,
+                    topics: subsection.topics.filter(t => 
+                      t.displayName.toLowerCase().includes(query)
+                    )
+                  }
+                ])
+                .filter(([key, subsection]) => subsection.topics.length > 0)
+            )
+          };
+        }
+      }).filter(section => 
+        (section.directTopics && section.directTopics.length > 0) ||
+        (section.subsections && Object.keys(section.subsections).length > 0)
+      );
+      
+      return {
+        ...unit,
+        sections: filteredSections
+      };
+    })
     .filter(unit => unit.sections.length > 0);
 });
+
 
 // --- COMPUTED PROPERTIES & METHODS (No changes here, except confirmSubmit) ---
 
