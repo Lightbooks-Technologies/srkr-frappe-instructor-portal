@@ -146,47 +146,70 @@ const addCustomModalStyles = () => {
 
 // Function to customize the modal after it's created
 const customizeEventModal = (eventData) => {
-  // ignore below login if eventData.attendanceSummary is not empty
-    setTimeout(() => {
-      const modal = document.querySelector('.sx__event-modal')
-      if (modal) {
-        if (!modal.querySelector('.custom-attendance-btn')) {
-          let content = modal.querySelector('.sx__event-modal__content')
-          if (!content) {
-            content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
+  setTimeout(() => {
+    const modal = document.querySelector('.sx__event-modal')
+    if (modal) {
+      if (!modal.querySelector('.custom-attendance-btn')) {
+        let content = modal.querySelector('.sx__event-modal__content')
+        if (!content) {
+          content = modal.querySelector('.sx__has-icon.sx__event-modal__description') || modal
+        }
+        
+        if (content) {
+          // Add instructor and student group info
+          const instructorInfo = document.createElement('div')
+          instructorInfo.style.marginTop = '12px'
+          instructorInfo.style.fontSize = '14px'
+          instructorInfo.style.color = '#6b7280'
+          
+          const fullEventData = events.value.find(event => event.id === eventData.id)
+          if (fullEventData) {
+            const instructorNames = formatInstructorNames(
+              fullEventData.instructor, 
+              fullEventData.coInstructor1, 
+              fullEventData.coInstructor2
+            )
+            // instructorInfo.innerHTML = `
+            //   <div style="margin-bottom: 4px;"><strong>Instructor:</strong> ${instructorNames}</div>
+            //   <div><strong>Student Group:</strong> ${fullEventData.studentGroup}</div>
+            // `
+            instructorInfo.innerHTML = `
+              <div style="margin-bottom: 4px;"><strong>Instructor:</strong> ${instructorNames}</div>
+            `
           }
           
-          if (content) {
-            const attendanceBtn = document.createElement('button')
-            attendanceBtn.className = 'custom-attendance-btn'
-            attendanceBtn.innerHTML = eventData.attendanceSummary && Object.keys(eventData.attendanceSummary).length > 0 ? 'View Attendance' : 'Take Attendance'
+          const attendanceBtn = document.createElement('button')
+          attendanceBtn.className = 'custom-attendance-btn'
+          attendanceBtn.innerHTML = eventData.attendanceSummary && Object.keys(eventData.attendanceSummary).length > 0 ? 'View Attendance' : 'Take Attendance'
 
-            attendanceBtn.addEventListener('click', () => {
-              const fullEventData = events.value.find(event => event.id === eventData.id)
-              if (fullEventData) {
-                navigateToAttendance(fullEventData)
-              }
-              const modalToClose = document.querySelector('.sx__event-modal')
-              if (modalToClose && modalToClose.parentNode) {
-                modalToClose.parentNode.removeChild(modalToClose)
-              }
-            })
-            
-            const spacer = document.createElement('div')
-            spacer.style.marginTop = '16px'
-            // Append one level before the content
-            if (content.parentNode) {
-              content.parentNode.appendChild(spacer)
-              content.parentNode.appendChild(attendanceBtn)
-            } else {
-              content.appendChild(spacer)
-              content.appendChild(attendanceBtn)
+          attendanceBtn.addEventListener('click', () => {
+            if (fullEventData) {
+              navigateToAttendance(fullEventData)
             }
+            const modalToClose = document.querySelector('.sx__event-modal')
+            if (modalToClose && modalToClose.parentNode) {
+              modalToClose.parentNode.removeChild(modalToClose)
+            }
+          })
+          
+          const spacer = document.createElement('div')
+          spacer.style.marginTop = '16px'
+          
+          // Append instructor info, then spacer, then button
+          if (content.parentNode) {
+            content.parentNode.appendChild(instructorInfo)
+            content.parentNode.appendChild(spacer)
+            content.parentNode.appendChild(attendanceBtn)
+          } else {
+            content.appendChild(instructorInfo)
+            content.appendChild(spacer)
+            content.appendChild(attendanceBtn)
           }
         }
       }
-    }, 200)
-  }
+    }
+  }, 200)
+}
 
 
 // Function to combine consecutive courses with the same course_id
@@ -266,6 +289,77 @@ const combineConsecutiveCourses = (scheduleData) => {
   return combined
 }
 
+// Helper function to format instructor names
+const formatInstructorNames = (instructor, coInstructor1, coInstructor2) => {
+  const instructors = [instructor, coInstructor1, coInstructor2].filter(Boolean)
+  return instructors.join(', ')
+}
+
+// Helper function to determine attendance status
+const getAttendanceStatus = (attendanceSummary, startDateTime) => {
+  const eventDate = new Date(startDateTime)
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  
+  // Check if event is in the future
+  if (eventDate > today) {
+    return 'future'
+  }
+  
+  // Check if attendance summary exists and has data
+  if (attendanceSummary && Object.keys(attendanceSummary).length > 0) {
+    return 'completed'
+  }
+  
+  // Past event with no attendance data
+  return 'missing'
+}
+
+// Add this function after your helper functions
+const generateAttendanceCalendars = () => {
+  return {
+    'completed': {
+      colorName: 'completed',
+      lightColors: {
+        main: '#16a34a',        // Green border
+        container: '#f0fdf4',   // Light green background
+        onContainer: '#15803d', // Dark green text
+      },
+      darkColors: {
+        main: '#22c55e',
+        container: '#166534',
+        onContainer: '#dcfce7',
+      },
+    },
+    'missing': {
+      colorName: 'missing',
+      lightColors: {
+        main: '#dc2626',        // Red border
+        container: '#fef2f2',   // Light red background
+        onContainer: '#991b1b', // Dark red text
+      },
+      darkColors: {
+        main: '#ef4444',
+        container: '#991b1b',
+        onContainer: '#fef2f2',
+      },
+    },
+    'future': {
+      colorName: 'future',
+      lightColors: {
+        main: '#6b7280',        // Grey border
+        container: '#f9fafb',   // Light grey background
+        onContainer: '#374151', // Dark grey text
+      },
+      darkColors: {
+        main: '#9ca3af',
+        container: '#4b5563',
+        onContainer: '#f9fafb',
+      },
+    }
+  };
+};
+
 const scheduleResource = createResource({
   url: 'srkr_frappe_app_api.instructor.api.get_instructor_schedule',
   params: {
@@ -275,38 +369,14 @@ const scheduleResource = createResource({
   },
   onSuccess: (response) => {
     const schedule = []
-    const calendarConfigs = {} // To store calendar colors
     const combinedResponse = combineConsecutiveCourses(response)
+    
     combinedResponse.forEach((classSchedule, index) => {
-      const calendarId = classSchedule.calendar_id || classSchedule.calendarid;
-      // Use the color from the API for the background, with a fallback.
-      const eventBackgroundColor = classSchedule.color ? classSchedule.color.trim() : '#ede9fe'; // Default to a light purple
-      
-      // If we haven't created a calendar config for this ID yet, create it now
-      if (calendarId && !calendarConfigs[calendarId]) {
-        // --- MODIFIED to match the image style ---
-        // The left border color of the event item.
-        const eventSidebarColor = '#16a34a'; // A green color to match the image's accent
-        // The text color of the event.
-        const eventTextColor = '#4338ca'; // A dark indigo color to match the image
-        
-        calendarConfigs[calendarId] = {
-          colorName: calendarId,
-          lightColors: {
-            main: eventSidebarColor,         // This sets the color of the left border in the agenda view
-            container: eventBackgroundColor, // This sets the background of the event
-            onContainer: eventTextColor,     // This sets the text color
-          },
-          darkColors: { // You can define different colors for dark mode
-            main: eventSidebarColor,
-            container: eventBackgroundColor,
-            onContainer: eventTextColor,
-          },
-        };
-      }
-      
       const startDateTime = classSchedule.start_time
       const endDateTime = classSchedule.end_time
+      
+      // Determine attendance status
+      const attendanceStatus = getAttendanceStatus(classSchedule.attendance_summary, startDateTime)
       
       schedule.push({
         id: `${classSchedule.course_schedule_id}-${index}`,
@@ -315,20 +385,25 @@ const scheduleResource = createResource({
         end: endDateTime,
         description: `Group: ${classSchedule.student_group}`,
         location: classSchedule.room_name,
-        calendarId: calendarId || 'default',
+        calendarId: attendanceStatus, // Use attendance status as calendar ID
         courseId: classSchedule.course_id,
         studentGroup: classSchedule.student_group,
         scheduleId: classSchedule.course_schedule_id,
         allCourseScheduleId: classSchedule.all_course_schedule_id || [classSchedule.course_schedule_id],
         attendanceSummary: classSchedule.attendance_summary || {},
+        instructor: classSchedule.instructor,
+        coInstructor1: classSchedule.co_instructor_1,
+        coInstructor2: classSchedule.co_instructor_2,
       })
     })
     
     events.value = schedule
     
-    // Update calendar with new events and new color configurations
+    // Update calendar with attendance-based calendars
+    const attendanceCalendars = generateAttendanceCalendars()
+    
     if (calendarApp.value) {
-      calendarApp.value.calendars.set(calendarConfigs);
+      calendarApp.value.calendars.set(attendanceCalendars);
       calendarApp.value.events.set(schedule)
     }
   },
@@ -337,6 +412,8 @@ const scheduleResource = createResource({
   },
   auto: true,
 })
+
+
 
 // Function to fetch schedule for a specific date range
 const fetchScheduleForRange = (startDate, endDate) => {
@@ -368,10 +445,9 @@ calendarApp.value = createCalendar({
     timeZone: 'Asia/Kolkata'
   }),
   views: [viewWeek, viewMonthAgenda, viewDay, viewMonthGrid],
-  // Set default view to Month Agenda to match the image
   defaultView: viewMonthAgenda.name,
   plugins: [createEventModalPlugin()],
-  calendars: {}, // Start with empty calendars, to be populated from the API
+  calendars: generateAttendanceCalendars(), // Use attendance-based calendars
   events: events.value,
   callbacks: {
     onRangeUpdate: handleRangeUpdate,
@@ -431,6 +507,22 @@ defineExpose({
   --sx-color-background: #fff; /* Set a clean white background */
 }
 
+/* Add instructor and group info below the time in agenda events */
+.sx__month-agenda-event::after {
+  content: attr(data-instructor) " • Group: " attr(data-group);
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 4px;
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+/* Hide the after pseudo-element if no instructor data */
+.sx__month-agenda-event:not([data-instructor])::after {
+  display: none;
+}
+
 /* Style for the event items in the agenda list */
 .sx__month-agenda-event {
   border-radius: 0.5rem; /* 8px rounded corners */
@@ -482,5 +574,18 @@ defineExpose({
 .sx__event-modal {
   max-width: 600px; /* Limit modal width */
   width: 90%; /* Responsive width */
+}
+/* Style for the event description in agenda view */
+.sx__month-agenda-event-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* Make sure description is visible */
+.sx__month-agenda-event .sx__month-agenda-event-description {
+  display: block !important;
+  opacity: 0.8;
 }
 </style>
