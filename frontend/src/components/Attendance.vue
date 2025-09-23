@@ -1941,6 +1941,8 @@ watch(selectedTopicIds, () => {
 
 .modal-body {
   padding: 0.5rem 1rem 1rem 1rem;
+  max-height: 600px;
+  overflow: auto;
 }
 
 .modal-body p {
