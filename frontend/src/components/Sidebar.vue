@@ -4,6 +4,7 @@
     :class="isSidebarCollapsed ? 'w-12' : 'w-56'"
   >
     <div class="flex flex-col overflow-hidden">
+    <div class="header-left">
       <UserDropdown
         class="p-2"
         :isCollapsed="isSidebarCollapsed"
@@ -11,7 +12,8 @@
           !educationSettings.loading && educationSettings.data
         "
       />
-      <div class="flex flex-col overflow-y-auto">
+      </div>
+      <div class="flex flex-col overflow-y-auto nav-links">
         <SidebarLink
           :label="link.label"
           :to="link.to"
@@ -51,18 +53,15 @@ import {
   UserCheck,
   ArrowLeftToLine,
   BookOpen,
-  LucideHome
+  LucideHome,
+  User2,
+  PieChart, 
 } from 'lucide-vue-next'
 
 import UserDropdown from './UserDropdown.vue'
 import { createResource } from 'frappe-ui'
 
 const links = [
-  // {
-  // 	label: 'Dashboard',
-  // 	to: '/',
-  // 	icon: LayoutDashboard,
-  // },
   {
     label: 'Home',
     to: '/home',
@@ -74,20 +73,25 @@ const links = [
     icon: CalendarCheck,
   },
   {
-    label: 'Grades',
-    to: '/grades',
-    icon: GraduationCap,
-  },
-  {
-    label: 'Fees',
-    to: '/fees',
-    icon: Banknote,
-  },
-  {
-    label: 'Attendance',
-    to: '/attendance',
+    label: 'Mentor',
+    to: '/mentor',
     icon: UserCheck,
   },
+  {
+    label: 'Analytics',
+    to: '/analytics', // analytics icon below
+    icon: PieChart,
+  },
+  {
+    label: 'Profile',
+    to: '/profile',
+    icon: User2,
+  },
+  //{
+ //   label: 'Attendance',
+//    to: '/attendance',
+//    icon: UserCheck,
+ // },
   // {
   // 	// TODO: create School Diary Page with card like CRM and from ListView go to Resource Document of each Card
   // 	label: 'Notes',
@@ -109,3 +113,15 @@ const educationSettings = createResource({
   auto: true,
 })
 </script>
+
+<style scoped>
+  .header-left{
+    padding: 4px 5px; 
+    background: rgba(255, 255, 255, .85); 
+    border-bottom: 1px solid #e0f2f1;
+  }
+  .nav-links{
+        gap: 5px;
+    margin-top: 5px;
+  }
+</style>

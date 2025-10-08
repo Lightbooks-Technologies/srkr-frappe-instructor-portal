@@ -1,8 +1,10 @@
 <template>
-  <div class="w-full h-full">
+  <div class="w-full h-full ms:px-3 lg:px-5">
     <ScheduleXCalendar
+      ref="calendarRef"
       v-if="calendarApp != undefined"
       :calendar-app="calendarApp"
+      class="h-[80vh] shadow-md p-3 border-[#f2f2f2] border rounded-sm"
     />
   </div>
 </template>
@@ -18,14 +20,21 @@ import {
 } from '@schedule-x/calendar'
 import '@schedule-x/theme-default/dist/index.css'
 import { createEventModalPlugin } from '@schedule-x/event-modal'
+import { createScrollControllerPlugin } from "@schedule-x/scroll-controller";
 import { createResource } from 'frappe-ui'
-import { ref, watch, shallowRef } from 'vue'
+import { ref, watch, shallowRef, onMounted } from 'vue'
 import { studentStore } from '@/stores/student'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const { getStudentInfo } = studentStore()
 const instructorInfo = getStudentInfo().value
+
+const calendarRef = ref(null);
+const scrollController = createScrollControllerPlugin({
+  initialScroll: "07:30",
+});
+
 
 const events = ref([])
 const calendarApp = shallowRef()
@@ -446,7 +455,7 @@ calendarApp.value = createCalendar({
   }),
   views: [viewWeek, viewMonthAgenda, viewDay, viewMonthGrid],
   defaultView: viewMonthAgenda.name,
-  plugins: [createEventModalPlugin()],
+  plugins: [createEventModalPlugin(), scrollController],
   calendars: generateAttendanceCalendars(), // Use attendance-based calendars
   events: events.value,
   callbacks: {
@@ -464,6 +473,19 @@ watch(events, (newEvents) => {
     calendarApp.value.events.set(newEvents)
   }
 }, { deep: true })
+
+onMounted(() => {
+  setTimeout(() => {
+    const scrollPlugin = calendarApp.value?.plugins?.scrollController;
+    if (scrollPlugin && typeof scrollPlugin.scrollTo === "function") {
+      scrollPlugin.scrollTo("08:30"); // 11 PM (24-hour format)
+    } else if (scrollPlugin && scrollPlugin.options?.initialScroll !== undefined) {
+      scrollPlugin.options.initialScroll = "07:30";
+    } else {
+      console.warn("Scroll controller plugin not ready or incompatible", scrollPlugin);
+    }
+  }, 300); 
+});
 
 // Utility methods for programmatic navigation
 const navigateToMonth = (year, month) => {
@@ -587,5 +609,12 @@ defineExpose({
 .sx__month-agenda-event .sx__month-agenda-event-description {
   display: block !important;
   opacity: 0.8;
+}
+.sx__view-container {
+   scrollbar-width: none;    
+  -ms-overflow-style: none;
+}
+.sx__view-container::-webkit-scrollbar {
+  display: none;            
 }
 </style>
