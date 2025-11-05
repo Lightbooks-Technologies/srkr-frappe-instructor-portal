@@ -163,7 +163,10 @@
             <!-- Roll Number -->
             <td class="px-6 py-4">
               <span class="text-sm font-medium text-gray-900">
-                {{ student.custom_student_id || student.student || 'N/A' }}
+                {{
+                  (student.custom_student_id || student.student || 'N/A') +
+                  (student.custom_roll_number ? ` - ${student.custom_roll_number}` : '')
+                }}
               </span>
             </td>
 
@@ -219,7 +222,12 @@
 
           <div class="student-details">
             <span class="student-name">{{ student.student_name }}</span>
-            <span class="roll-number">{{ student.custom_student_id || student.student || 'N/A' }}</span>
+            <span class="roll-number">
+                {{
+                  (student.custom_student_id || student.student || 'N/A') +
+                  (student.custom_roll_number ? ` - ${student.custom_roll_number}` : '')
+                }}
+            </span>
           </div>
         </div>
 
