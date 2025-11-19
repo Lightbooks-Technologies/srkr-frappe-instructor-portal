@@ -57,11 +57,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'teaching-' + star"
-                @click="logEntry.teaching_quality_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.teaching_quality_rating * 5) }"
+                @click="logEntry.teaching_quality_rating = star"
+                :class="{ active: star <= logEntry.teaching_quality_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.teaching_quality_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.teaching_quality_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -73,11 +73,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'facilities-' + star"
-                @click="logEntry.facilities_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.facilities_rating * 5) }"
+                @click="logEntry.facilities_rating = star"
+                :class="{ active: star <= logEntry.facilities_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.facilities_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.facilities_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -89,11 +89,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'content-' + star"
-                @click="logEntry.content_relevancy_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.content_relevancy_rating * 5) }"
+                @click="logEntry.content_relevancy_rating = star"
+                :class="{ active: star <= logEntry.content_relevancy_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.content_relevancy_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.content_relevancy_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -105,11 +105,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'assessment-' + star"
-                @click="logEntry.assessment_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.assessment_rating * 5) }"
+                @click="logEntry.assessment_rating = star"
+                :class="{ active: star <= logEntry.assessment_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.assessment_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.assessment_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -151,11 +151,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'hostel-' + star"
-                @click="logEntry.hostel_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.hostel_rating * 5) }"
+                @click="logEntry.hostel_rating = star"
+                :class="{ active: star <= logEntry.hostel_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.hostel_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.hostel_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -167,11 +167,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'food-' + star"
-                @click="logEntry.food_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.food_rating * 5) }"
+                @click="logEntry.food_rating = star"
+                :class="{ active: star <= logEntry.food_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.food_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.food_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -183,11 +183,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'transport-' + star"
-                @click="logEntry.transport_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.transport_rating * 5) }"
+                @click="logEntry.transport_rating = star"
+                :class="{ active: star <= logEntry.transport_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.transport_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.transport_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
@@ -199,11 +199,11 @@
                 type="button"
                 v-for="star in 5" 
                 :key="'sports-' + star"
-                @click="logEntry.sports_rating = star / 5"
-                :class="{ active: star <= Math.round(logEntry.sports_rating * 5) }"
+                @click="logEntry.sports_rating = star"
+                :class="{ active: star <= logEntry.sports_rating }"
                 class="star-button"
               >
-                {{ star <= Math.round(logEntry.sports_rating * 5) ? '★' : '☆' }}
+                {{ star <= logEntry.sports_rating ? '★' : '☆' }}
               </button>
             </div>
           </div>
