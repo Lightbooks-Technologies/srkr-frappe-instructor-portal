@@ -1,237 +1,235 @@
 <template>
-  <div class="h-full">
-    <v-card class="h-full">
-      <v-card-text class="pa-0 h-full">
-        <div class="iframe-container">
-          <iframe
-            ref="mentorIframe"
-            :src="mentorUrl"
-            frameborder="0"
-            class="mentor-iframe"
-            @load="onIframeLoad"
-            @error="onIframeError"
-          ></iframe>
-          
-          <!-- Loading overlay -->
-          <div v-if="isLoading" class="iframe-loading-overlay">
-            <v-progress-circular
-              indeterminate
-              color="primary"
-              size="64"
-            ></v-progress-circular>
-            <p class="mt-4">Loading Mentorship Log...</p>
-          </div>
-          
-          <!-- Error overlay -->
-          <div v-if="hasError" class="iframe-error-overlay">
-            <v-icon size="64" color="error">mdi-alert-circle</v-icon>
-            <p class="mt-4 text-error">Failed to load mentorship log</p>
-            <v-btn @click="refreshIframe" color="primary" class="mt-2">
-              Try Again
-            </v-btn>
-          </div>
-        </div>
-      </v-card-text>
-    </v-card>
+  <div>
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1 class="page-title">Student Mentorship Profile</h1>
+      <p v-if="!studentProfilesResource.loading && !studentProfilesResource.error && studentProfiles.length > 0" class="page-subtitle">
+        {{ studentProfiles.length }} {{ studentProfiles.length === 1 ? 'student' : 'students' }} assigned
+      </p>
+    </div>
+
+    <!-- The loading state is now correctly driven by the resource -->
+    <div v-if="studentProfilesResource.loading" class="loading-state">
+      Loading students...
+    </div>
+
+    <!-- Error state -->
+    <div v-else-if="studentProfilesResource.error" class="error-state">
+      Error loading students: {{ studentProfilesResource.error }}
+    </div>
+
+    <!-- The list component gets the reactive computed property -->
+    <MentorshipStudentList
+      v-else-if="studentProfiles.length > 0"
+      :profiles="studentProfiles"
+      @student-selected="navigateToStudentLogs"
+    />
+
+    <!-- Empty state -->
+    <div v-else class="empty-state">
+      No students found.
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { createResource } from 'frappe-ui';
+import { studentStore } from '@/stores/student';
+import MentorshipStudentList from '../components/MentorshipStudentList.vue';
 
-const mentorIframe = ref(null)
-const isLoading = ref(true)
-const hasError = ref(false)
+console.log('--- Mentor.vue setup started ---');
 
-// The admin URL to embed (same origin - no need for special parameters)
-const mentorUrl = '/app/mentorship-log-entry'
+const USE_MOCK = false; // Set to false to use real API
 
-// Handle iframe load event
-const onIframeLoad = () => {
-  isLoading.value = false
-  hasError.value = false
-  console.log('Mentorship log loaded successfully')
+const mockStudentProfiles = {
+    "message": [
+        {
+            "name": "EDU-STU-2025-00118",
+            "student": "EDU-STU-2025-00118",
+            "student_name": "ABHISHEK SANKE",
+            "program": "B.Tech Artificial Intelligence and Data Science",
+            "cumulative_attendance": null,
+            "student_group": "BTECH-ADS-AY2526-SEM-03-A",
+            "custom_student_id": "24B91A5401",
+            "student_image": "https://mockmind-api.uifaces.co/content/human/125.jpg"
+        },
+        {
+            "name": "EDU-STU-2025-00119",
+            "student": "EDU-STU-2025-00119",
+            "student_name": "ADABALA ARAVIND",
+            "program": "B.Tech Artificial Intelligence and Data Science",
+            "cumulative_attendance": 10,
+            "student_group": "BTECH-ADS-AY2526-SEM-03-A",
+            "custom_student_id": "24B91A5402",
+            "student_image": "https://mockmind-api.uifaces.co/content/human/222.jpg"
+        },
+        {
+            "name": "EDU-STU-2025-00120",
+            "student": "EDU-STU-2025-00120",
+            "student_name": "AKULA SRI DURGA MALLESWARI",
+            "program": "B.Tech Artificial Intelligence and Data Science",
+            "cumulative_attendance": 90,
+            "student_group": "BTECH-ADS-AY2526-SEM-03-A",
+            "custom_student_id": "24B91A5403",
+            "student_image": "https://mockmind-api.uifaces.co/content/human/80.jpg"
+        },
+        {
+            "name": "EDU-STU-2025-00121",
+            "student": "EDU-STU-2025-00121",
+            "student_name": "ANDE DURGA SRAVANI",
+            "program": "B.Tech Artificial Intelligence and Data Science",
+            "cumulative_attendance": 40,
+            "student_group": "BTECH-ADS-AY2526-SEM-03-A",
+            "custom_student_id": "24B91A5404",
+            "student_image": "https://mockmind-api.uifaces.co/content/human/218.jpg"
+        },
+        {
+            "name": "EDU-STU-2025-00122",
+            "student": "EDU-STU-2025-00122",
+            "student_name": "ANDE VINAY KUMAR",
+            "program": "B.Tech Artificial Intelligence and Data Science",
+            "cumulative_attendance": 65,
+            "student_group": "BTECH-ADS-AY2526-SEM-03-A",
+            "custom_student_id": "24B91A5405",
+            "student_image": "https://mockmind-api.uifaces.co/content/human/217.jpg"
+        },
+        {
+            "name": "EDU-STU-2025-01369",
+            "student": "EDU-STU-2025-01369",
+            "student_name": "MANDAPATI VENKATA YAMINI",
+            "program": "B.Tech Computer Science and Information Technology",
+            "cumulative_attendance": 95.65,
+            "student_group": "BTECH-CSIT-AY2526-SEM-03-B",
+            "custom_student_id": "24B91A0767",
+            "student_image": null
+        }
+    ]
+};
+
+const router = useRouter();
+const { getStudentInfo } = studentStore();
+
+// 1. Get instructor info SYNCHRONOUSLY
+const instructorInfo = getStudentInfo().value;
+const instructorId = instructorInfo?.instructor_record_id;
+
+// Log the ID we found
+console.log(`Retrieved instructor ID from store: ${instructorId}`);
+
+// 2. Define the resource OR mock it
+const studentProfilesResource = USE_MOCK
+  ? {
+      data: mockStudentProfiles,
+      loading: false,
+      error: null,
+      fetch: () => {
+        console.log('Mock: fetch called (no-op)');
+        return Promise.resolve(mockStudentProfiles);
+      },
+      reload: () => {
+        console.log('Mock: reload called (no-op)');
+        return Promise.resolve(mockStudentProfiles);
+      }
+    }
+  : createResource({
+      url: 'srkr_frappe_app_api.instructor-mentorship.api.get_mentorship_students',
+      params: {
+        instructor: instructorId,
+      },
+      auto: false,
+      onSuccess: (response) => {
+        console.log('API call successful. Response:', response);
+        console.log('Student profiles:', response?.message);
+      },
+      onError: (error) => {
+        console.error('API call failed:', error);
+      }
+    });
+
+// 3. Create a reactive COMPUTED property
+const studentProfiles = computed(() => {
+  const data = studentProfilesResource.data;
+  console.log('Computed studentProfiles - raw data:', data);
   
-  // Inject CSS to hide header elements (same origin)
-  // try {
-  //   const iframe = mentorIframe.value
-  //   if (iframe && iframe.contentDocument) {
-  //     // Wait a bit for content to fully load
-  //     setTimeout(() => {
-  //       const style = iframe.contentDocument.createElement('style')
-  //       style.textContent = `
-  //         /* Hide header based on the HTML structure seen in screenshot */
-  //         header.navbar.navbar-expand,
-  //         .navbar.navbar-expand,
-  //         [role="navigation"],
-  //         .sticky-top {
-  //           display: none !important;
-  //         }
-          
-  //         /* Hide specific header elements visible in the DOM */
-  //         header, .header, .navbar, .nav-bar, #header, #navbar,
-  //         .main-header, .page-header, .top-header,
-  //         [role="banner"], [data-v-navbar] {
-  //           display: none !important;
-  //         }
-          
-  //         /* Adjust body and main content */
-  //         body {
-  //           padding-top: 0 !important;
-  //           margin-top: 0 !important;
-  //         }
-          
-  //         /* Target the main content area to take full height */
-  //         .main-section, .content, #body, .page-content,
-  //         .body-sidebar-container, .main-content {
-  //           padding-top: 0 !important;
-  //           margin-top: 0 !important;
-  //         }
-          
-  //         /* Ensure the app div takes full height */
-  //         #app, [data-v-app] {
-  //           padding-top: 0 !important;
-  //         }
-          
-  //         /* Hide any fixed positioned elements at the top */
-  //         *[style*="position: fixed"][style*="top: 0"],
-  //         *[style*="position:fixed"][style*="top:0"] {
-  //           display: none !important;
-  //         }
-  //       `
-  //       iframe.contentDocument.head.appendChild(style)
-        
-  //       // Also try to remove header elements directly
-  //       const headerSelectors = [
-  //         'header',
-  //         '.navbar',
-  //         '.navbar-expand',
-  //         '[role="navigation"]',
-  //         '.sticky-top',
-  //         '.main-header',
-  //         '.page-header'
-  //       ]
-        
-  //       headerSelectors.forEach(selector => {
-  //         const elements = iframe.contentDocument.querySelectorAll(selector)
-  //         elements.forEach(el => {
-  //           if (el.tagName === 'HEADER' || 
-  //               el.classList.contains('navbar') || 
-  //               el.classList.contains('header')) {
-  //             el.style.display = 'none'
-  //           }
-  //         })
-  //       })
-        
-  //       console.log('Header hiding CSS and DOM manipulation applied')
-  //     }, 500) // Wait 500ms for content to load
-  //   }
-  // } catch (error) {
-  //   console.error('Error hiding header:', error)
-  // }
-}
-
-// Handle iframe error
-const onIframeError = () => {
-  isLoading.value = false
-  hasError.value = true
-  console.error('Failed to load mentorship log')
-}
-
-// Refresh iframe
-const refreshIframe = () => {
-  isLoading.value = true
-  hasError.value = false
-  
-  if (mentorIframe.value) {
-    mentorIframe.value.src = mentorUrl
+  // Handle both direct array and nested message format
+  if (Array.isArray(data)) {
+    return data;
   }
-}
+  if (data && Array.isArray(data.message)) {
+    return data.message;
+  }
+  return [];
+});
 
-// Open in new tab
-const openInNewTab = () => {
-  window.open(mentorUrl, '_blank')
-}
-
-// Handle responsive iframe
-const handleResize = () => {
-  // You can add responsive logic here if needed
-}
-
+// 4. Use onMounted to trigger the API call (or mock initialization)
 onMounted(() => {
-  window.addEventListener('resize', handleResize)
+  console.log('Component has mounted.');
   
-  // Optional: Add message listener for cross-origin communication
-  window.addEventListener('message', (event) => {
-    // Handle messages from the iframe if needed
-    // if (event.origin === 'https://srkr.lightbooks-dev.io') {
-      console.log('Message from iframe:', event.data)
-    // }
-  })
-})
+  if (USE_MOCK) {
+    console.log('Using mock data - no API call made');
+  } else if (instructorId) {
+    console.log('Triggering API fetch with instructor:', instructorId);
+    studentProfilesResource.fetch({
+      instructor: instructorId
+    });
+  } else {
+    console.error('CRITICAL: Could not get instructorId from the store on mount!');
+  }
+});
 
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-})
+// 5. Navigation function
+const navigateToStudentLogs = (profile) => {
+  if (profile && profile.student) {
+    router.push({
+      path: '/mentorship-logs',
+      query: {
+        student: profile.student,
+        studentName: profile.student_name,
+      },
+    });
+  }
+};
 </script>
 
 <style scoped>
-.iframe-container {
-  position: relative;
-  width: 100%;
-  height: calc(100vh - 200px); /* Adjust based on your layout */
-  min-height: 600px;
+.page-header {
+  padding: 1.25rem 1rem 1rem 1rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.mentor-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  border-radius: 4px;
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.3;
 }
 
-.iframe-loading-overlay,
-.iframe-error-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(255, 255, 255, 0.9);
-  z-index: 10;
-}
-
-.iframe-loading-overlay p,
-.iframe-error-overlay p {
+.page-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0;
+  line-height: 1.4;
+}
+
+.loading-state {
   text-align: center;
-  color: #666;
+  padding: 3rem 1rem;
+  color: #6b7280;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .iframe-container {
-    height: calc(100vh - 150px);
-    min-height: 400px;
-  }
-  
-  .p-5 {
-    padding: 0.5rem !important;
-  }
-  
-  .ma-12 {
-    margin: 0.5rem !important;
-  }
+.error-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #dc2626;
 }
 
-@media (max-width: 480px) {
-  .iframe-container {
-    height: calc(100vh - 120px);
-    min-height: 300px;
-  }
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
 }
 </style>

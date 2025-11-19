@@ -39,6 +39,23 @@ const routes = [
     name: 'Profile',
     component: () => import('@/pages/Profile.vue'),
   },
+  {
+    path: '/mentorship-logs',
+    name: 'MentorshipLogs',
+    component: () => import('@/pages/MentorshipLogs.vue')
+  },
+  {
+    // This path matches the one we used in MentorshipLogs.vue
+    path: '/mentorship-log/edit', 
+    name: 'MentorshipLogDetail',
+    component: () => import('@/pages/MentorshipLogDetail.vue'),
+  },
+  {
+    // This path matches the one we used in MentorshipLogs.vue
+    path: '/mentorship-log/new', 
+    name: 'MentorshipLogNew',
+    component: () => import('@/pages/MentorshipLogNew.vue'),
+  }
 ]
 
 let router = createRouter({
