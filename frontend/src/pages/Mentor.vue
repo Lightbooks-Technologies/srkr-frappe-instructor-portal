@@ -187,6 +187,9 @@ const navigateToStudentLogs = (profile) => {
       query: {
         student: profile.student,
         studentName: profile.student_name,
+        guardianName: profile.guardian_name,
+        guardianPhone: profile.guardian_phone,
+        customStudentId: profile.custom_student_id,
       },
     });
   }

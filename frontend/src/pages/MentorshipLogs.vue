@@ -162,7 +162,13 @@ const goBack = () => {
 const navigateToNewLog = () => {
   router.push({
     path: '/mentorship-log/new',
-    query: { student: studentId, studentName: studentName }, // Pass student info
+    query: { 
+      student: studentId, 
+      studentName: studentName,
+      guardianName: route.query.guardianName,
+      guardianPhone: route.query.guardianPhone,
+      customStudentId: route.query.customStudentId,
+    }, // Pass student info
   });
 };
 

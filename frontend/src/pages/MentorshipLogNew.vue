@@ -20,11 +20,19 @@
           </div>
           <div class="info-row">
             <span class="info-label">Student ID</span>
-            <span class="info-value">{{ logEntry.student }}</span>
+            <span class="info-value">{{ route.query.customStudentId }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Mentor</span>
             <span class="info-value">{{ logEntry.mentor }}</span>
+          </div>
+          <div v-if="route.query.guardianName" class="info-row">
+            <span class="info-label">Guardian</span>
+            <span class="info-value">{{ formatName(route.query.guardianName) }}</span>
+          </div>
+          <div v-if="route.query.guardianPhone" class="info-row">
+            <span class="info-label">Guardian Phone</span>
+            <span class="info-value">{{ route.query.guardianPhone }}</span>
           </div>
         </div>
 
