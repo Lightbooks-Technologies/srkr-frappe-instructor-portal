@@ -34,7 +34,7 @@
         <!-- Student Info -->
         <div class="student-info">
           <span class="student-name">{{ formatName(profile.student_name) }}</span>
-          <span class="student-group">{{ profile.student_group }}</span>
+          <span class="student-group">{{ profile.student_group }}<template v-if="profile.program_semester"> • {{ profile.program_semester }}</template></span>
           <div class="student-footer">
             <span class="student-id">{{ profile.custom_student_id }}</span>
             <span 

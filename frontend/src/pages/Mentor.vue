@@ -2,10 +2,39 @@
   <div>
     <!-- Page Header -->
     <div class="page-header">
-      <h1 class="page-title">Student Mentorship Profile</h1>
-      <p v-if="!studentProfilesResource.loading && !studentProfilesResource.error && studentProfiles.length > 0" class="page-subtitle">
-        {{ studentProfiles.length }} {{ studentProfiles.length === 1 ? 'student' : 'students' }} assigned
-      </p>
+      <div class="header-main">
+        <div class="header-info">
+          <h1 class="page-title">Student Mentorship Profile</h1>
+          <p v-if="!studentProfilesResource.loading && !studentProfilesResource.error && studentProfiles.length > 0" class="page-subtitle">
+            {{ studentProfiles.length }} {{ studentProfiles.length === 1 ? 'student' : 'students' }} assigned
+          </p>
+        </div>
+        
+        <!-- Sort Control -->
+        <div class="sort-wrapper">
+          <div 
+            @click="sortDropdownOpen = !sortDropdownOpen" 
+            class="sort-button"
+            :class="{ 'active': sortDropdownOpen }"
+          >
+            <FeatherIcon name="filter" class="w-4 h-4" />
+            <span class="sort-text">{{ currentSortLabel }}</span>
+            <FeatherIcon name="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': sortDropdownOpen }" />
+          </div>
+
+          <div v-if="sortDropdownOpen" class="sort-dropdown" @click.stop>
+            <div 
+              v-for="option in sortOptions" 
+              :key="option.value"
+              @click="applySort(option.value)"
+              class="sort-item"
+              :class="{ 'active': sortBy === option.value }"
+            >
+              {{ option.label }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- The loading state is now correctly driven by the resource -->
@@ -35,7 +64,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { createResource } from 'frappe-ui';
+import { createResource, FeatherIcon } from 'frappe-ui';
 import { studentStore } from '@/stores/student';
 import MentorshipStudentList from '../components/MentorshipStudentList.vue';
 
@@ -139,28 +168,70 @@ const studentProfilesResource = USE_MOCK
         instructor: instructorId,
       },
       auto: false,
-      onSuccess: (response) => {
-        console.log('API call successful. Response:', response);
-        console.log('Student profiles:', response?.message);
-      },
       onError: (error) => {
         console.error('API call failed:', error);
       }
     });
 
+// Sort State
+const sortBy = ref('semester-desc');
+const sortDropdownOpen = ref(false);
+const sortOptions = [
+  { label: 'Semester (High to Low)', value: 'semester-desc' },
+  { label: 'Semester (Low to High)', value: 'semester-asc' },
+  { label: 'Name (A to Z)', value: 'name-asc' },
+  { label: 'Attendance (Critical first)', value: 'attendance-low' }
+];
+
+const currentSortLabel = computed(() => {
+  return sortOptions.find(o => o.value === sortBy.value)?.label || 'Sort';
+});
+
+const applySort = (val) => {
+  sortBy.value = val;
+  sortDropdownOpen.value = false;
+};
+
 // 3. Create a reactive COMPUTED property
 const studentProfiles = computed(() => {
+  let list = [];
   const data = studentProfilesResource.data;
-  console.log('Computed studentProfiles - raw data:', data);
   
   // Handle both direct array and nested message format
   if (Array.isArray(data)) {
-    return data;
+    list = [...data];
+  } else if (data && Array.isArray(data.message)) {
+    list = [...data.message];
+  } else {
+    return [];
   }
-  if (data && Array.isArray(data.message)) {
-    return data.message;
+
+  // Frontend Sorting Logic
+  if (sortBy.value === 'semester-desc') {
+    list.sort((a, b) => {
+      const semA = a.program_semester || '';
+      const semB = b.program_semester || '';
+      if (semB !== semA) return semB.localeCompare(semA);
+      return (a.student_name || '').localeCompare(b.student_name || '');
+    });
+  } else if (sortBy.value === 'semester-asc') {
+    list.sort((a, b) => {
+      const semA = a.program_semester || '';
+      const semB = b.program_semester || '';
+      if (semA !== semB) return semA.localeCompare(semB);
+      return (a.student_name || '').localeCompare(b.student_name || '');
+    });
+  } else if (sortBy.value === 'name-asc') {
+    list.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+  } else if (sortBy.value === 'attendance-low') {
+    list.sort((a, b) => {
+      const attA = a.cumulative_attendance === null ? 100 : a.cumulative_attendance;
+      const attB = b.cumulative_attendance === null ? 100 : b.cumulative_attendance;
+      return attA - attB;
+    });
   }
-  return [];
+  
+  return list;
 });
 
 // 4. Use onMounted to trigger the API call (or mock initialization)
@@ -198,9 +269,99 @@ const navigateToStudentLogs = (profile) => {
 
 <style scoped>
 .page-header {
-  padding: 1.25rem 1rem 1rem 1rem;
+  padding: 1rem 1rem;
   background-color: #ffffff;
   border-bottom: 1px solid #f3f4f6;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sort-wrapper {
+  position: relative;
+}
+
+.sort-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sort-button:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.sort-button.active {
+  background-color: #ffffff;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.sort-text {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.sort-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.625rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  min-width: 180px;
+  overflow: hidden;
+  z-index: 30;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sort-item {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sort-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.sort-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+}
+
+.transition-transform {
+  transition: transform 0.2s ease;
 }
 
 .page-title {
