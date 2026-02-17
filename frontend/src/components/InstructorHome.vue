@@ -7,7 +7,7 @@
         <p class="welcome-date">{{ getGreeting() }}, {{ getCurrentDay() }} {{ getCurrentDate() }}</p>
         
         <router-link to="/schedule" class="schedule-btn">
-          <span>View Full Schedule</span>
+          <span>View Entire Schedule</span>
           <FeatherIcon name="arrow-right" class="w-5 h-5 ml-2" />
         </router-link>
       </div>
