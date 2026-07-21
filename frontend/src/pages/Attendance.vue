@@ -3,6 +3,7 @@
       :students="students"
       :topics="topics"
       :courseInfo="courseInfo"
+      :updateWindow="updateWindowResource.data"
       @refresh-data="handleRefreshData"/>
 </template>
 
@@ -105,12 +106,32 @@ const attendanceResource = createResource({
   auto: false // Don't auto-load, we'll trigger manually
 })
 
+// Server-authoritative update window: can this class's attendance still be
+// corrected (same day, before 5:00 PM IST)? The Update button renders from
+// this — never from the device clock.
+const updateWindowResource = createResource({
+  url: 'srkr_frappe_app_api.instructor.attendance_update.get_attendance_update_window',
+  onError: (error) => {
+    console.error('Error fetching attendance update window:', error)
+  },
+  auto: false
+})
+
 // Handle refresh data event from child component
 const handleRefreshData = () => {
   console.log('Refreshing attendance data after successful submission...')
-  
+
   // Reload the attendance data to get updated status
   attendanceResource.reload()
+  fetchUpdateWindow()
+}
+
+const fetchUpdateWindow = () => {
+  if (!courseScheduleId.value) return
+  updateWindowResource.update({
+    params: { course_schedule: courseScheduleId.value }
+  })
+  updateWindowResource.reload()
 }
 
 // Function to fetch attendance data (can be called independently)
@@ -125,6 +146,7 @@ const fetchAttendanceData = () => {
       }
     })
     attendanceResource.reload()
+    fetchUpdateWindow()
   } else {
     console.error('Missing required route parameters:', {
       courseScheduleId: courseScheduleId.value,

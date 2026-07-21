@@ -17,11 +17,31 @@
     </div>
 
     <!-- Alert Messages -->
-    <div v-if="allStudentsHaveStatus" class="alert-message completed">
+    <div v-if="allStudentsHaveStatus && canUpdateWindow" class="alert-message edit">
+      <FeatherIcon name="info" class="w-5 h-5 text-blue-600" />
+      <div>
+        <p class="alert-text">
+          Attendance for this class has been recorded. You can update it until 5:00 PM today — tap a student to change
+          their status, then press Update Attendance.
+        </p>
+      </div>
+    </div>
+
+    <div v-else-if="allStudentsHaveStatus" class="alert-message completed">
       <FeatherIcon name="check-circle" class="w-5 h-5 text-green-600" />
       <div>
         <p class="alert-text">
           Attendance for this class has already been recorded and submitted. No further changes can be made.
+        </p>
+      </div>
+    </div>
+
+    <div v-else-if="someStudentsHaveStatus && canUpdateWindow" class="alert-message partial">
+      <FeatherIcon name="alert-triangle" class="w-5 h-5 text-yellow-600" />
+      <div>
+        <p class="alert-text">
+          Attendance has been partially recorded. Mark the remaining students, and until 5:00 PM today you can also
+          correct the students that are already submitted.
         </p>
       </div>
     </div>
@@ -250,8 +270,13 @@
     <div class="submit-section md:flex md:justify-center">
       <button @click="submitAttendance" class="submit-button w-full md:w-[300px]" :disabled="isSubmitDisabled">
         <span v-if="isSubmitting">Submitting...</span>
+        <span v-else-if="allStudentsHaveStatus && canUpdateWindow && changedStudents.length > 0">
+          Update Attendance ({{ changedStudents.length }} changed)
+        </span>
+        <span v-else-if="allStudentsHaveStatus && canUpdateWindow">No Changes to Update</span>
         <span v-else-if="allStudentsHaveStatus">Attendance Already Submitted</span>
         <span v-else-if="unmarkedCount > 0">Please mark all students ({{ unmarkedCount }} unmarked)</span>
+        <span v-else-if="changedStudents.length > 0">Submit Attendance ({{ changedStudents.length }} correction{{ changedStudents.length !== 1 ? 's' : '' }})</span>
         <span v-else>Submit Attendance</span>
       </button>
     </div>
@@ -440,10 +465,19 @@
           </button>
         </div>
         <div class="modal-body">
-          <p>Do you want to submit attendance for the remaining students?</p>
+          <p v-if="isPureUpdate">Do you want to update the attendance for this class?</p>
+          <p v-else>Do you want to submit attendance for the remaining students?</p>
+
+          <!-- Corrections to already-submitted records -->
+          <div v-if="changedStudents.length > 0" class="submission-section">
+            <h4 class="section-title">Corrections to submitted records:</h4>
+            <p v-for="s in changedStudents" :key="s.student">
+              <strong>{{ s.student_name }}</strong>: {{ s.status }} → {{ s.checked ? 'Present' : 'Absent' }}
+            </p>
+          </div>
 
           <!-- Selected Topics -->
-          <div class="submission-section">
+          <div v-if="!isPureUpdate" class="submission-section">
             <h4 class="section-title">Topics Covered in this Session:</h4>
 
             <div v-if="getSelectedTopicDetails().length > 0" class="topic-completion-list">
@@ -479,7 +513,7 @@
           </div>
 
           <!-- Current Submission -->
-          <div class="submission-section">
+          <div v-if="!isPureUpdate" class="submission-section">
             <h4 class="section-title">Students being submitted:</h4>
             <p><strong>Present:</strong> {{ editablePresentCount }}</p>
             <p><strong>Absent:</strong> {{ editableAbsentCount }}</p>
@@ -503,7 +537,9 @@
         </div>
         <div class="modal-actions">
           <button @click="closeConfirmModal" class="modal-button secondary">Cancel</button>
-          <button @click="confirmSubmit" class="modal-button primary">Submit Attendance</button>
+          <button @click="confirmSubmit" class="modal-button primary">
+            {{ isPureUpdate ? 'Update Attendance' : 'Submit Attendance' }}
+          </button>
         </div>
       </div>
     </div>
@@ -562,7 +598,10 @@
   const props = defineProps({
     students: { type: Array, default: () => [] },
     topics: { type: Array, default: () => [] },
-    courseInfo: { type: Object, required: true }
+    courseInfo: { type: Object, required: true },
+    // Server-computed { can_update, deadline, server_now } — the only source
+    // of truth for whether submitted records may still be corrected
+    updateWindow: { type: Object, default: null }
   })
 
   // Define emit for parent communication
@@ -1159,7 +1198,22 @@
   const allStudentsHaveStatus = computed(() => studentsWithStatus.value.length === students.value.length && students.value.length > 0);
   const someStudentsHaveStatus = computed(() => studentsWithStatus.value.length > 0 && !allStudentsHaveStatus.value);
   const unmarkedCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === null).length);
-  const isSubmitDisabled = computed(() => allStudentsHaveStatus.value || isSubmitting.value || unmarkedCount.value > 0);
+
+  // Update window (same-day, before 5:00 PM IST) — server-decided
+  const canUpdateWindow = computed(() => !!props.updateWindow?.can_update);
+  // Already-submitted students whose checkbox now differs from their stored status
+  const changedStudents = computed(() =>
+    students.value.filter(s => s.status && s.checked !== null &&
+      (s.checked === true ? 'Present' : 'Absent') !== s.status)
+  );
+  // True when everything is already submitted and we're only correcting
+  const isPureUpdate = computed(() => allStudentsHaveStatus.value);
+
+  const isSubmitDisabled = computed(() => {
+    if (isSubmitting.value) return true;
+    if (allStudentsHaveStatus.value) return !canUpdateWindow.value || changedStudents.value.length === 0;
+    return unmarkedCount.value > 0;
+  });
   const editablePresentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === true).length);
   const editableAbsentCount = computed(() => studentsWithoutStatus.value.filter(s => s.checked === false).length);
   const alreadyPresentCount = computed(() => studentsWithStatus.value.filter(s => s.status === 'Present').length);
@@ -1167,7 +1221,8 @@
   const totalPresentCount = computed(() => editablePresentCount.value + alreadyPresentCount.value);
   const totalAbsentCount = computed(() => editableAbsentCount.value + alreadyAbsentCount.value);
 
-  const isStudentDisabled = (student) => !!student.status;
+  // Submitted students become editable again while the update window is open
+  const isStudentDisabled = (student) => !!student.status && !canUpdateWindow.value;
   const getPercentageClass = (percentage) => {
     if (percentage >= 85) return 'percentage-good';
     if (percentage >= 75) return 'percentage-average';
@@ -1317,6 +1372,12 @@
 
   const submitAttendance = () => {
     if (isSubmitDisabled.value) return;
+    if (isPureUpdate.value) {
+      // Corrections only — topics were captured at first submission
+      completedTopicIds.value = [];
+      showConfirmModal.value = true;
+      return;
+    }
     openTopicsModal();
   };
 
@@ -1440,30 +1501,68 @@
       course_completed: isCourseCompleted.value
     };
 
-    submitAttendanceResource.submit(requestData);
+    const corrections = changedStudents.value.map(s => ({
+      student: s.student,
+      status: s.checked === true ? 'Present' : 'Absent'
+    }));
+
+    performSubmission(requestData, corrections);
+  };
+
+  /**
+   * First-time marks go to mark_attendances (insert path); corrections to
+   * already-submitted records go to update_class_attendance (update-only,
+   * server re-validates the 5:00 PM window). Either call may be a no-op.
+   */
+  const performSubmission = async (requestData, corrections) => {
+    const hasFresh =
+      JSON.parse(requestData.students_present).length > 0 ||
+      JSON.parse(requestData.students_absent).length > 0;
+
+    try {
+      if (hasFresh) {
+        await submitAttendanceResource.submit(requestData);
+      }
+      if (corrections.length > 0) {
+        await updateAttendanceResource.submit({
+          course_schedule: JSON.stringify(props.courseInfo.allScheduleId || [props.courseInfo.scheduleId]),
+          changes: JSON.stringify(corrections)
+        });
+      }
+      successTitle.value = 'Success';
+      successMessage.value = corrections.length > 0 && !hasFresh
+        ? 'Attendance has been updated successfully.'
+        : 'Attendance has been marked successfully.';
+      showSuccessModal.value = true;
+    } catch (err) {
+      errorTitle.value = 'Submission Failed';
+      errorMessage.value = (err && (err.messages?.[0] || err.message)) || 'An unknown error occurred.';
+      showErrorModal.value = true;
+    } finally {
+      isSubmitting.value = false;
+    }
   };
 
   const submitAttendanceResource = createResource({
     url: 'srkr_frappe_app_api.instructor.api.mark_attendances',
-    method: 'POST',
-    onSuccess: () => {
-      successTitle.value = 'Success';
-      successMessage.value = 'Attendance has been marked successfully.';
-      showSuccessModal.value = true;
-    },
-    onError: (err) => {
-      errorTitle.value = 'Submission Failed';
-      errorMessage.value = err.message || 'An unknown error occurred.';
-      showErrorModal.value = true;
-    },
-    onFinish: () => { isSubmitting.value = false; }
+    method: 'POST'
+  });
+
+  const updateAttendanceResource = createResource({
+    url: 'srkr_frappe_app_api.instructor.attendance_update.update_class_attendance',
+    method: 'POST'
   });
 
   const closeSuccessModal = () => {
     showSuccessModal.value = false;
     emit('refresh-data');
   };
-  const closeErrorModal = () => { showErrorModal.value = false; };
+  const closeErrorModal = () => {
+    showErrorModal.value = false;
+    // resync — e.g. the window closed at 5:00 PM mid-edit, or the mark call
+    // succeeded but the correction call was rejected
+    emit('refresh-data');
+  };
 
   onMounted(() => {
     if (organizedTopics.value.length > 0) {
